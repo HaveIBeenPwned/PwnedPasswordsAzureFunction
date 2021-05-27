@@ -22,25 +22,26 @@ namespace Functions
         return null;
       }
 
-      using var sha1 = new SHA1Managed();
-      
-      var bytes = source == "UTF8" ? Encoding.UTF8.GetBytes(input) : Encoding.Unicode.GetBytes(input);
-      var hash = sha1.ComputeHash(bytes);
-      var sb = new StringBuilder(hash.Length * 2);
-
-      foreach (var b in hash)
+      using (var sha1 = new SHA1Managed())
       {
-        sb.Append(b.ToString("X2"));
-      }
+        var bytes = source == "UTF8" ? Encoding.UTF8.GetBytes(input) : Encoding.Unicode.GetBytes(input);
+        var hash = sha1.ComputeHash(bytes);
+        var sb = new StringBuilder(hash.Length * 2);
 
-      return sb.ToString().ToUpper();
+        foreach (var b in hash)
+        {
+          sb.Append(b.ToString("X2"));
+        }
+
+        return sb.ToString().ToUpper();
+      }
     }
 
     /// <summary>
     /// Check that the string is a valid SHA-1 hash with regex
     /// </summary>
-    /// <param name="input"></param>
-    /// <returns></returns>
+    /// <param name="input">Input hash to check</param>
+    /// <returns>Boolean representing if the input is valid or not</returns>
     public static bool IsStringSHA1Hash(string input)
     {
       if (string.IsNullOrWhiteSpace(input))
