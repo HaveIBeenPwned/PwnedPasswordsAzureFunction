@@ -35,8 +35,7 @@ namespace Functions
         return false;
       }
 
-      var regex = new Regex(@"\b([a-fA-F0-9]{40})\b");
-      var match = regex.Match(input);
+      var match = Regex.Match(input, @"\b([a-fA-F0-9]{40})\b");
       return match.Length > 0;
     }
   }
