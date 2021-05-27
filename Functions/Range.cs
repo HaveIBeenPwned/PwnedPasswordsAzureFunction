@@ -22,8 +22,7 @@ namespace Functions
         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing hash prefix");
       }
 
-      var querystringRegex = new Regex("^[a-fA-F0-9]{5}$");
-      var match = querystringRegex.Match(hashPrefix);
+      var match = Regex.Match(hashPrefix, "^[a-fA-F0-9]{5}$");
       if (match.Length == 0)
       {
         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
