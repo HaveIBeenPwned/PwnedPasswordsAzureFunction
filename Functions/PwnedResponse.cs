@@ -7,37 +7,37 @@ using System.Text;
 
 namespace Functions
 {
-  public static class PwnedResponse
-  {
-    public static HttpResponseMessage CreateResponse(HttpRequestMessage req, HttpStatusCode code, string content = null, Stream stream = null, DateTimeOffset? lastModified = null)
+    public static class PwnedResponse
     {
-      var msg = new HttpResponseMessage(code);
-
-      if (stream != null)
-      {
-        msg.Content = new StreamContent(stream);
-        msg.Content.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
-
-        if (lastModified != null)
+        public static HttpResponseMessage CreateResponse(HttpRequestMessage req, HttpStatusCode code, string content = null, Stream stream = null, DateTimeOffset? lastModified = null)
         {
-          msg.Content.Headers.LastModified = lastModified;
+            var msg = new HttpResponseMessage(code);
+
+            if (stream != null)
+            {
+                msg.Content = new StreamContent(stream);
+                msg.Content.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+
+                if (lastModified != null)
+                {
+                    msg.Content.Headers.LastModified = lastModified;
+                }
+            }
+            else
+            {
+                msg.Content = content == null ? null : new StringContent(content, new UTF8Encoding(false), "text/plain");
+            }
+
+            msg.Headers.CacheControl = new CacheControlHeaderValue
+            {
+                MaxAge = TimeSpan.FromDays(31),
+                Public = true
+            };
+
+            msg.Headers.Add("Arr-Disable-Session-Affinity", "True");
+            msg.Headers.Add("Access-Control-Allow-Origin", "*");
+
+            return msg;
         }
-      }
-      else
-      {
-        msg.Content = content == null ? null : new StringContent(content, new UTF8Encoding(false), "text/plain");
-      }
-
-      msg.Headers.CacheControl = new CacheControlHeaderValue
-      {
-        MaxAge = TimeSpan.FromDays(31),
-        Public = true
-      };
-
-      msg.Headers.Add("Arr-Disable-Session-Affinity", "True");
-      msg.Headers.Add("Access-Control-Allow-Origin", "*");
-
-      return msg;
     }
-  }
 }
