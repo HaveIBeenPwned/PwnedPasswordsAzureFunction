@@ -39,5 +39,21 @@ namespace Functions
       var match = regex.Match(input);
       return match.Length > 0;
     }
+
+        /// <summary>
+        /// Check that the string is a valid NTLM hash with regex
+        /// </summary>
+        /// <param name="input">Input hash to check</param>
+        /// <returns>Boolean representing if the input is valid or not</returns>
+        public static bool IsStringNTLMHash(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return false;
+            }
+
+            var match = Regex.Match(input, @"\b([a-fA-F0-9]{32})\b");
+            return match.Length > 0;
+        }
   }
 }
