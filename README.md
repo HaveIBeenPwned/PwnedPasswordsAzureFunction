@@ -37,6 +37,11 @@ Please ensure that you read our [Code of Conduct](/CODE_OF_CONDUCT.md) first.
 
 It is recommended to use [Visual Studio 2019](https://visualstudio.microsoft.com/downloads/) or [VS Code](https://code.visualstudio.com/) for working on Pwned Passwords Azure Function. You will also need the [.Net Framework 4.6.2 Developer Pack](https://dotnet.microsoft.com/download/dotnet-framework/net462) installed.
 
+Once you have installed your IDE of choice, make sure that you install the relevant Azure Functions extensions
+
+- For VS Code, use the VS Code [Azure Functions](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurefunctions) extension
+- For Visual Studio 2019, make sure you have installed the [Azure Development workload](https://docs.microsoft.com/en-us/azure/azure-functions/functions-create-your-first-function-visual-studio#prerequisites). If you haven't, use the Visual Studio Installer to do so (instructions on this can be found [here](https://docs.microsoft.com/en-us/dotnet/azure/configure-visual-studio)).
+
 
 ## Current To-Do List
 
