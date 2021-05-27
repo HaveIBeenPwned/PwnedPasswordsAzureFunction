@@ -34,6 +34,8 @@ namespace Functions
     
     private static bool IsValidPrefix(string hashPrefix)
     {
+      bool IsHex(char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
+
       if (hashPrefix.Length != 5)
       {
         return false;
@@ -48,11 +50,6 @@ namespace Functions
       }
       
       return true;
-    }
-    
-    private static bool IsHex(char x)
-    {
-      return (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
     }
   }
 }
