@@ -9,6 +9,8 @@ namespace Functions
 {
   public static class Range
   {
+    private static readonly Regex QuerystringRegex = new Regex("^[a-fA-F0-9]{5}$");
+    
     [FunctionName("Range-GET")]
     public static HttpResponseMessage RunRoute([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestMessage req, string hashPrefix, TraceWriter log)
     {
@@ -22,8 +24,7 @@ namespace Functions
         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing hash prefix");
       }
 
-      var querystringRegex = new Regex("^[a-fA-F0-9]{5}$");
-      var match = querystringRegex.Match(hashPrefix);
+      var match = QuerystringRegex.Match(hashPrefix);
       if (match.Length == 0)
       {
         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
