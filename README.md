@@ -64,7 +64,19 @@ Once you have installed your IDE of choice, make sure that you install the relev
 
 ### Running Locally
 
-You should configure an App.config file to hold the Configuration Manager values for `PwnedPasswordsConnectionString` and `BlobContainerName`. Ensure that this file is *not* commited. 
+You should configure a `local.settings.json` file to hold the Configuration Manager values for `PwnedPasswordsConnectionString` and `BlobContainerName` within the Functions project. Ensure that this file is **not** commited (it is ignored by Git within the Functions project). 
+
+`local.settings.json` should contain the following correctly configured values:
+
+```json
+{
+    "IsEncrypted": false,
+    "Values": {
+        "PwnedPasswordsConnectionString": "<Your Connection String from Azure Storage Emulator>",
+        "BlobContainerName": "<Name of Blob Container You Created>"
+    }
+}
+```
 
 Using a utility such as cURL or a web browser will allow you to visit the locally running Azure Functions endpoints, typically at `http://localhost:7071`. 
 
