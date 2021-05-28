@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
@@ -85,9 +84,24 @@ namespace Functions
 
             log.Info("Received valid Pwned Passwords append request");
 
-            // TODO: Handle validated dataset being imported into Azure Blob Storage
+            BlobStorage storage = new BlobStorage(log);
+            bool? newEntry = storage.UpdateHash(data.SHA1Hash, data.Prevalence);
+            if (newEntry == null)
+            {
+                // Returned null, that means that the item was unable to be added, internal server error
+                return PwnedResponse.CreateResponse(req, HttpStatusCode.InternalServerError, "Unable to add entry to Pwned Passwords");
+            }
 
-            return req.CreateResponse(HttpStatusCode.OK, "Successfully added data to Pwned Passwords");
+            if (newEntry.Value)
+            {
+                log.Info("Added new entry to Pwned Passwords");
+            }
+            else
+            {
+                log.Info("Updated existing entry in Pwned Passwords");
+            }
+
+            return PwnedResponse.CreateResponse(req, HttpStatusCode.OK, newEntry.ToString());
         }
     }
 }
