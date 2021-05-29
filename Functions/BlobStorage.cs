@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
 using System.IO;
@@ -79,41 +80,47 @@ namespace Functions
 
             try
             {
-                bool hasFound = false;
+                var totalSw = new Stopwatch();
+                totalSw.Start();
 
-                var sw = new Stopwatch();
-                sw.Start();
-                var blobStream = blockBlob.OpenRead();
+                int identifiedLine = -1;
+                List<string> lines = new List<string>();
+
+                var searchSw = new Stopwatch();
+                searchSw.Start();
+                var blobReadStream = blockBlob.OpenRead();
 
                 // Use a Stream reader to read line by line
-                using (StreamReader reader = new StreamReader(blobStream))
+                using (StreamReader reader = new StreamReader(blobReadStream))
                 {
+                    // We need to read every line to write it again - we can't append due to the use of Block Blobs
                     string readLine = reader.ReadLine();
+
+                    int i = 0;
                     while (readLine != null)
                     {
                         // If our line starts with the hash
                         if (readLine.StartsWith(existingHash))
                         {
                             _log.Info("Found existing hash");
-                            sw.Stop();
-                            _log.Info($"Existing hash found in {sw.ElapsedMilliseconds:n0}ms");
-                            hasFound = true;
-                            break;
+                            searchSw.Stop();
+                            _log.Info($"Existing hash found in {searchSw.ElapsedMilliseconds:n0}ms");
+                            identifiedLine = i;
                         }
-
+                        lines.Add(readLine);
                         readLine = reader.ReadLine();
+                        i++;
                     }
 
-                    StringBuilder newLine = new StringBuilder();
-                    newLine.Append(existingHash);
-                    newLine.Append(":");
+                    StringBuilder newLineBuilder = new StringBuilder();
+                    newLineBuilder.Append(existingHash);
+                    newLineBuilder.Append(":");
 
-                    // This is an existing hash
-                    if (hasFound)
+                    // This is an existing hash as we have an index for it
+                    if (identifiedLine != -1)
                     {
-                        // Split at the : to get the number afterwards
-                        string[] splitLine = readLine.Split(':');
-                        if (splitLine.Length < 2 || !int.TryParse(splitLine[1], out int existingPrevalence))
+                        string prevalenceCount = lines[identifiedLine].Substring(36);
+                        if (!int.TryParse(prevalenceCount, out int existingPrevalence))
                         {
                             _log.Info("Unable to correctly parse value for " + existingHash);
                             return null;
@@ -121,28 +128,50 @@ namespace Functions
                         int updatedPrevalence = existingPrevalence + prevalence;
 
                         // Construct updated entry line
-                        newLine.Append(updatedPrevalence);
+                        newLineBuilder.Append(updatedPrevalence);
 
-                        _log.Info($"Updated line in {fileName} will look like this: {newLine}");
+                        _log.Info($"Updated line in {fileName} will look like this: {newLineBuilder}");
+
+                        lines[identifiedLine] = newLineBuilder.ToString();
                     }
                     // This is a new hash
                     else
                     {
                         _log.Info("Unable to find hash in existing corpus");
 
-                        sw.Stop();
-                        _log.Info($"Existing Blob Storage stream loaded and searched in {sw.ElapsedMilliseconds:n0}ms");
+                        searchSw.Stop();
+                        _log.Info($"Existing Blob Storage stream loaded and searched in {searchSw.ElapsedMilliseconds:n0}ms");
 
                         // Construct new entry line
-                        newLine.Append(prevalence);
+                        newLineBuilder.Append(prevalence);
 
-                        _log.Info($"New line in {fileName} will look like this: {newLine}");
+                        var insertSw = new Stopwatch();
+                        insertSw.Start();
+                        AddSorted(ref lines, newLineBuilder.ToString());
+                        insertSw.Stop();
+
+                        _log.Info($"Sorted insert took {insertSw.ElapsedMilliseconds:n0}ms");
                     }
-
-                    // TODO: Update existing entry in Azure Blob Storage
                 }
 
-                return !hasFound;
+                var writeSw = new Stopwatch();
+                writeSw.Start();
+                var blobWriteStream = blockBlob.OpenWrite();
+                // Write to the block - a CloudBlockBlob::OpenWrite call always overwrites
+                using (StreamWriter writer = new StreamWriter(blobWriteStream))
+                {
+                    // Write every line
+                    foreach (string line in lines)
+                    {
+                        writer.WriteLine(line);
+                    }
+                }
+
+                totalSw.Stop();
+                _log.Info($"Total update of hash prevalence took {searchSw.ElapsedMilliseconds:n0}ms");
+
+                // Return if the line identified does not exist
+                return identifiedLine == -1;
             }
             catch (StorageException ex) when (ex.RequestInformation?.HttpStatusCode == 404)
             {
@@ -151,5 +180,30 @@ namespace Functions
 
             return null;
         }
-  }
+
+        /// <summary>
+        /// Add the item to the already sorted list
+        /// </summary>
+        /// <param name="list">Pointer to the list to use</param>
+        /// <param name="line">Line to insert</param>
+        private void AddSorted(ref List<string> list, string line)
+        {
+            if (list[list.Count - 1].CompareTo(line) <= 0)
+            {
+                list.Add(line);
+                return;
+            }
+            if (list[0].CompareTo(line) >= 0)
+            {
+                list.Insert(0, line);
+                return;
+            }
+            int index = list.BinarySearch(line);
+            if (index < 0)
+            {
+                index = ~index;
+            }
+            list.Insert(index, line);
+        }
+    }
 }
