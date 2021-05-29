@@ -101,7 +101,7 @@ namespace Functions
                 log.Info("Updated existing entry in Pwned Passwords");
             }
 
-            return PwnedResponse.CreateResponse(req, HttpStatusCode.OK, newEntry.ToString());
+            return PwnedResponse.CreateResponse(req, HttpStatusCode.OK, "");
         }
     }
 }
