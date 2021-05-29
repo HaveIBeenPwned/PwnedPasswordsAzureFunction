@@ -16,7 +16,7 @@
 		<img src="https://img.shields.io/github/forks/HaveIBeenPwned/PwnedPasswordsAzureFunction?style=flat-square" /></a>
   <a href="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/stargazers/" alt="Stars">
 		<img src="https://img.shields.io/github/stars/HaveIBeenPwned/PwnedPasswordsAzureFunction?style=flat-square" /></a>
-  <a href="code_of_conduct.md" alt="Stars">
+  <a href="CODE_OF_CONDUCT.md" alt="Stars">
 	<img src="https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg?style=flat-square" /></a>
   
   </p>
