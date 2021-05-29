@@ -60,13 +60,8 @@ namespace Functions
 
         return blobStream;
       }
-      catch (StorageException ex)
+      catch (StorageException ex) when (ex.RequestInformation?.HttpStatusCode == 404)
       {
-        if (!ex.Message.Contains("Not Found"))
-        {
-          throw;
-        }
-
         _log.Warning($"Blob Storage couldn't find file \"{fileName}\"");
       }
 
