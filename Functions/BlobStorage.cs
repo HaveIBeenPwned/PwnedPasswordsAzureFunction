@@ -42,7 +42,7 @@ namespace Functions
     /// </summary>
     /// <param name="hashPrefix">The hash prefix to use to lookup the blob storage file</param>
     /// <param name="lastModified">Pointer to the DateTimeOffset for the last time that the blob was modified</param>
-    /// <returns>Returns a stream to access the k-anonyminity SHA-1 file</returns>
+    /// <returns>Returns a stream to access the k-anonymity SHA-1 file</returns>
     public Stream GetByHashesByPrefix(string hashPrefix, out DateTimeOffset? lastModified)
     {
       var fileName = $"{hashPrefix}.txt";
