@@ -72,6 +72,7 @@ You should configure a `local.settings.json` file to hold the Configuration Mana
 {
     "IsEncrypted": false,
     "Values": {
+        "AzureWebJobsStorage": "<Your Connection String from Azure Storage Emulator",
         "PwnedPasswordsConnectionString": "<Your Connection String from Azure Storage Emulator>",
         "BlobContainerName": "<Name of Blob Container you created>",
         "TableStorageName": "<Name of Table Storage you created"

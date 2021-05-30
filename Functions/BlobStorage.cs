@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
@@ -214,6 +215,25 @@ namespace Functions
                 index = ~index;
             }
             list.Insert(index, line);
+        }
+
+        /// <summary>
+        /// Get all all of the available hash prefix blobs for an Azure Table Storage update
+        /// </summary>
+        public async Task<List<Tuple<string, StreamWriter>>> GetHashPrefixBlobs()
+        {
+            List<Tuple<string, StreamWriter>> hashPrefixBlobs = new List<Tuple<string, StreamWriter>>();
+
+            var blobList = _container.ListBlobs();
+            foreach (var blobItem in blobList)
+            {
+                CloudBlockBlob blob = blobItem as CloudBlockBlob;
+                var stream = await blob.OpenWriteAsync();
+                var hashPrefix = blob.Name.Substring(0, 5);
+                hashPrefixBlobs.Add(new Tuple<string, StreamWriter>(hashPrefix, new StreamWriter(stream)));
+            }
+
+            return hashPrefixBlobs;
         }
     }
 }

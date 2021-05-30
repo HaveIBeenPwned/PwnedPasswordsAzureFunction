@@ -43,13 +43,13 @@ namespace Functions
         public string GetByHashesByPrefix(string hashPrefix, out DateTimeOffset? lastModified)
         {
             lastModified = DateTimeOffset.MinValue;
-            Stream stream = new MemoryStream();
-            StringBuilder responseBuilder = new StringBuilder();
-            using (StreamWriter writer = new StreamWriter(stream))
+            var stream = new MemoryStream();
+            var responseBuilder = new StringBuilder();
+            using (var writer = new StreamWriter(stream))
             {
 
-                string partitionFilter = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, hashPrefix);
-                TableQuery<PwnedPasswordEntity> query = new TableQuery<PwnedPasswordEntity>().Where(partitionFilter);
+                var partitionFilter = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, hashPrefix);
+                var query = new TableQuery<PwnedPasswordEntity>().Where(partitionFilter);
 
                 var sw = new Stopwatch();
                 sw.Start();
@@ -59,8 +59,8 @@ namespace Functions
                 sw.Stop();
                 _log.Info($"Table Storage queried in {sw.ElapsedMilliseconds:n0}ms");
 
-                int i = 0;
-                foreach (PwnedPasswordEntity entity in response)
+                var i = 0;
+                foreach (var entity in response)
                 {
                     responseBuilder.Append(entity.RowKey);
                     responseBuilder.Append(":");
@@ -91,9 +91,9 @@ namespace Functions
         public bool? UpdateHash(PwnedPasswordAppend append)
         {
             // Ensure that the hash is upper case
-            string sha1Hash = append.SHA1Hash.ToUpper();
-            string partitionKey = sha1Hash.Substring(0, 5);
-            string rowKey = sha1Hash.Substring(5);
+            append.SHA1Hash = append.SHA1Hash.ToUpper();
+            var partitionKey = append.SHA1Hash.Substring(0, 5);
+            var rowKey = append.SHA1Hash.Substring(5);
             
             try
             {
@@ -103,23 +103,23 @@ namespace Functions
                 var searchSw = new Stopwatch();
                 searchSw.Start();
 
-                TableOperation retrieve = TableOperation.Retrieve<PwnedPasswordEntity>(partitionKey, rowKey);
-                TableResult result = table.Execute(retrieve);
+                var retrieve = TableOperation.Retrieve<PwnedPasswordEntity>(partitionKey, rowKey);
+                var result = table.Execute(retrieve);
 
                 searchSw.Stop();
                 _log.Info($"Search completed in {searchSw.ElapsedMilliseconds:n0}ms");
 
-                PwnedPasswordEntity pwnedPassword = result.Result as PwnedPasswordEntity;
+                var pwnedPassword = result.Result as PwnedPasswordEntity;
 
                 if (pwnedPassword != null)
                 {
                     pwnedPassword.Prevalence += append.Prevalence;
-                    TableOperation update = TableOperation.Replace(pwnedPassword);
+                    var update = TableOperation.Replace(pwnedPassword);
                     result = table.Execute(update);
                 }
                 else
                 {
-                    TableOperation insert = TableOperation.Insert(new PwnedPasswordEntity(append));
+                    var insert = TableOperation.Insert(new PwnedPasswordEntity(append));
                     result = table.Execute(insert);
                 }
 

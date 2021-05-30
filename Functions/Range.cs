@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -7,10 +8,10 @@ using Microsoft.Azure.WebJobs.Host;
 
 namespace Functions
 {
-  /// <summary>
-  /// Main entry point for Pwned Passwords
-  /// </summary>
-  public static class Range
+    /// <summary>
+    /// Main entry point for Pwned Passwords
+    /// </summary>
+    public static class Range
   {
     /// <summary>
     /// Handle a request to /range/{hashPrefix}
@@ -18,7 +19,7 @@ namespace Functions
     /// <param name="req">The request message from the client</param>
     /// <param name="hashPrefix">The passed hash prefix</param>
     /// <param name="log">Trace writer to use to write to the log</param>
-    /// <returns></returns>
+    /// <returns>Response to the requesting client</returns>
     [FunctionName("Range-GET")]
     public static HttpResponseMessage RunRoute([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestMessage req, string hashPrefix, TraceWriter log)
     {
@@ -50,6 +51,11 @@ namespace Functions
       return response;
     }
     
+    /// <summary>
+    /// Check that the prefix is valid
+    /// </summary>
+    /// <param name="hashPrefix">The hash prefix to validate</param>
+    /// <returns>Boolean determining if the prefix is valid</returns>
     private static bool IsValidPrefix(string hashPrefix)
     {
       bool IsHex(char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
@@ -70,8 +76,14 @@ namespace Functions
       return true;
     }
 
+        /// <summary>
+        /// Handle a request to /range/append
+        /// </summary>
+        /// <param name="req">The request message from the client</param>
+        /// <param name="log">Trace writer to use to write to the log</param>
+        /// <returns>Response to the requesting client</returns>
         [FunctionName("AppendPwnedPassword")]
-        public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "range/append")] HttpRequestMessage req, TraceWriter log)
+        public static async Task<HttpResponseMessage> AppendData([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "range/append")] HttpRequestMessage req, TraceWriter log)
         {
             // Check that the data has been passed as JSON
             if (req.Content.Headers.ContentType.MediaType.ToLower() != "application/json")
@@ -160,6 +172,55 @@ namespace Functions
                 // Invalid array passed, Bad Request
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid JSON array");
             }
+        }
+
+        /// <summary>
+        /// Updates the contents of the Azure Storage Blobs from the Azure Storage Table data.
+        /// This currently runs every day at midnight
+        /// </summary>
+        /// <param name="timer">Timer information</param>
+        /// <param name="log">Logger</param>
+        [FunctionName("UpdateStorageBlobs")]
+        public static async Task UpdateStorageBlobs(
+#if DEBUG
+            [TimerTrigger("0 0 0 * * *", RunOnStartup = true)]
+#else
+            [TimerTrigger("0 0 0 * * *")]
+#endif
+        TimerInfo timer, TraceWriter log)
+        {
+            // TODO: PRIORITY Optimise this by checking the Timestamp in Azure Table Storage
+            //       This will allow the updating of files that only *need* to be updated instead
+            //       of running this against every file (costly)
+
+            // TODO: Invalidate blob item at Cloudflare cache
+
+            log.Info($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last}");
+
+            var sw = new Stopwatch();
+            sw.Start();
+
+            var blobStorage = new BlobStorage(log);
+            var tableStorage = new TableStorage(log);
+
+            // Get a list of Tuples with the hash prefix and a StreamWriter
+            var hashPrefixBlobs = await blobStorage.GetHashPrefixBlobs();
+
+            foreach (var blob in hashPrefixBlobs)
+            {
+                // Better than just having Item1/Item2
+                var partitionKey = blob.Item1;
+                var streamWriter = blob.Item2;
+                
+                // Get the correctly formatted data from Azure Table Storage
+                var hashPrefixFileContents = tableStorage.GetByHashesByPrefix(partitionKey, out _);
+                // Write this asynchronously to the file
+                await streamWriter.WriteAsync(hashPrefixFileContents);
+                
+                streamWriter.Dispose();
+            }
+
+            log.Info($"Successfully updated Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
         }
     }
 }
