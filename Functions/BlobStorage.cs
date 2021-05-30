@@ -11,11 +11,18 @@ using Microsoft.WindowsAzure.Storage.Blob;
 
 namespace Functions
 {
+  /// <summary>
+  /// Blob Storage instance to access hash prefix files
+  /// </summary>
   public class BlobStorage
   {
     private readonly CloudBlobContainer _container;
     private readonly TraceWriter _log;
 
+    /// <summary>
+    /// Create a new Blob storage access instance
+    /// </summary>
+    /// <param name="log">Trace writer to use to write to the log</param>
     public BlobStorage(TraceWriter log)
     {
       _log = log;
@@ -32,6 +39,12 @@ namespace Functions
       _container = blobClient.GetContainerReference(containerName);
     }
 
+    /// <summary>
+    /// Get a stream to the file using the hash prefix
+    /// </summary>
+    /// <param name="hashPrefix">The hash prefix to use to lookup the blob storage file</param>
+    /// <param name="lastModified">Pointer to the DateTimeOffset for the last time that the blob was modified</param>
+    /// <returns>Returns a stream to access the k-anonymity SHA-1 file</returns>
     public Stream GetByHashesByPrefix(string hashPrefix, out DateTimeOffset? lastModified)
     {
       var fileName = $"{hashPrefix}.txt";
