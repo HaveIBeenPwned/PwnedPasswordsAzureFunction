@@ -69,7 +69,6 @@ namespace Functions
       
       return true;
     }
-  }
 
         [FunctionName("AppendPwnedPassword")]
         public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "range/append")] HttpRequestMessage req, TraceWriter log)
@@ -84,67 +83,82 @@ namespace Functions
             try
             {
                 // Get JSON POST request body
-                PwnedPasswordAppend data = await req.Content.ReadAsAsync<PwnedPasswordAppend>();
+                PwnedPasswordAppend[] data = await req.Content.ReadAsAsync<PwnedPasswordAppend[]>();
 
+                // First validate the data
                 if (data == null)
                 {
                     // Json wasn't parsed from POST body, bad request
                     return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing JSON body");
                 }
 
-                if (string.IsNullOrEmpty(data.SHA1Hash))
+                for (int i = 0; i < data.Length; i++)
                 {
-                    // Empty SHA-1 hash, bad request
-                    return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing SHA-1 hash");
-                }
-                if (!Hash.IsStringSHA1Hash(data.SHA1Hash))
-                {
-                    // Invalid SHA-1 hash, bad request
-                    return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The SHA-1 hash was not in a valid format");
-                }
 
-                if (string.IsNullOrEmpty(data.NTLMHash))
-                {
-                    // Empty NTLM hash, bad request
-                    return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing NTLM hash");
-                }
-                if (!Hash.IsStringNTLMHash(data.NTLMHash))
-                {
-                    // Invalid NTLM hash, bad request
-                    return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The NTLM hash was not in a valid format");
-                }
+                    if (string.IsNullOrEmpty(data[i].SHA1Hash))
+                    {
+                        // Empty SHA-1 hash, bad request
+                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing SHA-1 hash for item at index " + i);
+                    }
+                    if (!Hash.IsStringSHA1Hash(data[i].SHA1Hash))
+                    {
+                        // Invalid SHA-1 hash, bad request
+                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The SHA-1 hash was not in a valid format for item at index " + i);
+                    }
 
-                if (data.Prevalence <= 0)
-                {
-                    // Prevalence not set or invalid value, bad request
-                    return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid prevalence value");
+                    if (string.IsNullOrEmpty(data[i].NTLMHash))
+                    {
+                        // Empty NTLM hash, bad request
+                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing NTLM hash for item at index " + (i + 1));
+                    }
+                    if (!Hash.IsStringNTLMHash(data[i].NTLMHash))
+                    {
+                        // Invalid NTLM hash, bad request
+                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The NTLM hash was not in a valid format for item at index " + i);
+                    }
+
+                    if (data[i].Prevalence <= 0)
+                    {
+                        // Prevalence not set or invalid value, bad request
+                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid prevalence value for item at index " + i);
+                    }
                 }
 
                 log.Info("Received valid Pwned Passwords append request");
 
-                BlobStorage storage = new BlobStorage(log);
-                bool? newEntry = storage.UpdateHash(data.SHA1Hash, data.Prevalence);
-                if (newEntry == null)
-                {
-                    // Returned null, that means that the item was unable to be added, internal server error
-                    return PwnedResponse.CreateResponse(req, HttpStatusCode.InternalServerError, "Unable to add entry to Pwned Passwords");
-                }
+                var storage = new BlobStorage(log);
 
-                if (newEntry.Value)
+                // Now insert the data
+                foreach (PwnedPasswordAppend item in data)
                 {
-                    log.Info("Added new entry to Pwned Passwords");
-                }
-                else
-                {
-                    log.Info("Updated existing entry in Pwned Passwords");
+                    var newEntry = storage.UpdateHash(item.SHA1Hash, item.Prevalence);
+                    if (newEntry == null)
+                    {
+                        // Returned null, that means that the item was unable to be added, internal server error
+                        return PwnedResponse.CreateResponse(req, HttpStatusCode.InternalServerError, "Unable to add entry to Pwned Passwords");
+                    }
+
+                    if (newEntry.Value)
+                    {
+                        log.Info("Added new entry to Pwned Passwords");
+                    }
+                    else
+                    {
+                        log.Info("Updated existing entry in Pwned Passwords");
+                    }
                 }
 
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.OK, "");
             }
             catch (Newtonsoft.Json.JsonReaderException)
             {
-                // Everything can be string, but Prevalence must be an int, so it can cause a JsonReader exception
+                // Everything can be string, but Prevalence must be an int, so it can cause a JsonReader exception, Bad Request
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid prevalence value");
+            }
+            catch (Newtonsoft.Json.JsonSerializationException)
+            {
+                // Invalid array passed, Bad Request
+                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid JSON array");
             }
         }
     }
