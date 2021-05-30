@@ -44,9 +44,9 @@ namespace Functions
         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
       }
 
-      var storage = new BlobStorage(log);
+      var storage = new TableStorage(log);
       var stream = storage.GetByHashesByPrefix(hashPrefix.ToUpper(), out var lastModified);
-      var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, null, stream, lastModified);
+      var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, stream, null, lastModified);
       return response;
     }
     
@@ -126,12 +126,12 @@ namespace Functions
 
                 log.Info("Received valid Pwned Passwords append request");
 
-                var storage = new BlobStorage(log);
+                var storage = new TableStorage(log);
 
                 // Now insert the data
                 foreach (PwnedPasswordAppend item in data)
                 {
-                    var newEntry = storage.UpdateHash(item.SHA1Hash, item.Prevalence);
+                    var newEntry = storage.UpdateHash(item);
                     if (newEntry == null)
                     {
                         // Returned null, that means that the item was unable to be added, internal server error

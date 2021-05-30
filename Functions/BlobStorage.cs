@@ -174,6 +174,8 @@ namespace Functions
                         writer.WriteLine(line);
                     }
                 }
+                writeSw.Stop();
+                _log.Info($"Write back to Blob Storage took {searchSw.ElapsedMilliseconds:n0}ms");
 
                 totalSw.Stop();
                 _log.Info($"Total update of hash prevalence took {searchSw.ElapsedMilliseconds:n0}ms");
