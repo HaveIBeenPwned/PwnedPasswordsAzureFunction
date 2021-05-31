@@ -148,18 +148,21 @@ namespace Functions
                 for (int i = 0; i < data.Length; i++)
                 {
                     var newEntry = await storage.UpdateHash(data[i]);
-                    if (newEntry == null)
-                    {
-                        failedAttempts.Add(data[i]);
-                    }
 
                     if (newEntry.HasValue)
                     {
-                        log.Info("Added new entry to Pwned Passwords");
+                        if (newEntry.Value)
+                        {
+                            log.Info("Added new entry to Pwned Passwords");
+                        }
+                        else
+                        {
+                            log.Info("Updated existing entry in Pwned Passwords");
+                        }
                     }
                     else
                     {
-                        log.Info("Updated existing entry in Pwned Passwords");
+                        failedAttempts.Add(data[i]);
                     }
                 }
 
