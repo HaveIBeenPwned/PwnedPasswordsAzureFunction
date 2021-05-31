@@ -71,7 +71,6 @@ namespace Functions
             lastModified = null;
             return null;
         }
-    }
 
         /// <summary>
         /// Updates the prevalence for the given hash by a specified amount

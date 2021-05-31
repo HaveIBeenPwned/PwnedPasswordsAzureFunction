@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -12,12 +12,6 @@ namespace Functions
     /// Main entry point for Pwned Passwords
     /// </summary>
     public static class Range
-    /// <param name="req">The request message from the client</param>
-    /// <param name="hashPrefix">The passed hash prefix</param>
-    /// <param name="log">Trace writer to use to write to the log</param>
-    /// <returns>Response to the requesting client</returns>
-    [FunctionName("Range-GET")]
-    public static HttpResponseMessage RunRoute([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestMessage req, string hashPrefix, TraceWriter log)
     {
         /// <summary>
         /// Handle a request to /range/{hashPrefix}
@@ -46,26 +40,17 @@ namespace Functions
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing hash prefix");
             }
 
-      var storage = new TableStorage(log);
-      var stream = storage.GetByHashesByPrefix(hashPrefix.ToUpper(), out var lastModified);
-      var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, stream, null, lastModified);
-      return response;
-    }
-    
-    /// <summary>
-    /// Check that the prefix is valid
-    /// </summary>
-    /// <param name="hashPrefix">The hash prefix to validate</param>
-    /// <returns>Boolean determining if the prefix is valid</returns>
-    private static bool IsValidPrefix(string hashPrefix)
-    {
-      bool IsHex(char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
-
-            var storage = new BlobStorage(log);
+            var storage = new TableStorage(log);
             var stream = storage.GetByHashesByPrefix(hashPrefix.ToUpper(), out var lastModified);
-            var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, null, stream, lastModified);
+            var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, stream, null, lastModified);
             return response;
         }
+
+        /// <summary>
+        /// Check that the prefix is valid
+        /// </summary>
+        /// <param name="hashPrefix">The hash prefix to validate</param>
+        /// <returns>Boolean determining if the prefix is valid</returns>
 
         private static bool IsValidPrefix(string hashPrefix)
         {
@@ -86,7 +71,6 @@ namespace Functions
 
             return true;
         }
-    }
 
         /// <summary>
         /// Handle a request to /range/append
@@ -223,12 +207,12 @@ namespace Functions
                 // Better than just having Item1/Item2
                 var partitionKey = blob.Item1;
                 var streamWriter = blob.Item2;
-                
+
                 // Get the correctly formatted data from Azure Table Storage
                 var hashPrefixFileContents = tableStorage.GetByHashesByPrefix(partitionKey, out _);
                 // Write this asynchronously to the file
                 await streamWriter.WriteAsync(hashPrefixFileContents);
-                
+
                 streamWriter.Dispose();
             }
 

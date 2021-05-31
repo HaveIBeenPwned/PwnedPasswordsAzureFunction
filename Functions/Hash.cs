@@ -52,7 +52,6 @@ namespace Functions
             var match = Regex.Match(input, @"\b([a-fA-F0-9]{40})\b");
             return match.Length > 0;
         }
-    }
 
         /// <summary>
         /// Check that the string is a valid NTLM hash with regex
@@ -69,5 +68,5 @@ namespace Functions
             var match = Regex.Match(input, @"\b([a-fA-F0-9]{32})\b");
             return match.Length > 0;
         }
-  }
+    }
 }
