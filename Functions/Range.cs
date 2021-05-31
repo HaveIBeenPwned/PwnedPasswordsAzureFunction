@@ -1,10 +1,12 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Host;
+using Newtonsoft.Json;
 
 namespace Functions
 {
@@ -56,7 +58,6 @@ namespace Functions
         /// </summary>
         /// <param name="hashPrefix">The hash prefix to validate</param>
         /// <returns>Boolean determining if the prefix is valid</returns>
-
         private static bool IsValidPrefix(string hashPrefix)
         {
             bool IsHex(char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
@@ -141,17 +142,18 @@ namespace Functions
 
                 var storage = new TableStorage(log);
 
+                var failedAttempts = new List<PwnedPasswordAppend>();
+
                 // Now insert the data
-                foreach (PwnedPasswordAppend item in data)
+                for (int i = 0; i < data.Length; i++)
                 {
-                    var newEntry = await storage.UpdateHash(item);
+                    var newEntry = await storage.UpdateHash(data[i]);
                     if (newEntry == null)
                     {
-                        // Returned null, that means that the item was unable to be added, internal server error
-                        return PwnedResponse.CreateResponse(req, HttpStatusCode.InternalServerError, "Unable to add entry to Pwned Passwords");
+                        failedAttempts.Add(data[i]);
                     }
 
-                    if (newEntry.Value)
+                    if (newEntry.HasValue)
                     {
                         log.Info("Added new entry to Pwned Passwords");
                     }
@@ -161,14 +163,25 @@ namespace Functions
                     }
                 }
 
+                if (failedAttempts.Count > 0)
+                {
+                    // We have some failed attempts, that means that some items were unable to be added, internal server error
+                    var errorMessage = "Unable to add following entries to Pwned Passwords:\n";
+                    foreach (var failedAttempt in failedAttempts)
+                    {
+                        errorMessage += $"{JsonConvert.SerializeObject(failedAttempt, Formatting.None)}\n";
+                    }
+                    return PwnedResponse.CreateResponse(req, HttpStatusCode.InternalServerError, errorMessage);
+                }
+
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.OK, "");
             }
-            catch (Newtonsoft.Json.JsonReaderException)
+            catch (JsonReaderException)
             {
                 // Everything can be string, but Prevalence must be an int, so it can cause a JsonReader exception, Bad Request
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid prevalence value");
             }
-            catch (Newtonsoft.Json.JsonSerializationException)
+            catch (JsonSerializationException)
             {
                 // Invalid array passed, Bad Request
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid JSON array");
@@ -194,8 +207,7 @@ namespace Functions
         {
             log.Info($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last.ToUniversalTime()}");
 
-            var sw = new Stopwatch();
-            sw.Start();
+            var sw = Stopwatch.StartNew();
 
             var blobStorage = new BlobStorage(log);
             var tableStorage = new TableStorage(log);
@@ -215,7 +227,9 @@ namespace Functions
             }
 
             // TODO: Invalidate blob item at Cloudflare cache
+            // https://api.cloudflare.com/#zone-purge-files-by-url
 
+            sw.Stop();
             log.Info($"Successfully updated Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
         }
     }

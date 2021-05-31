@@ -85,8 +85,8 @@ Using a utility such as cURL or a web browser will allow you to visit the locall
 
 ## To-Do List
 
-- [ ] Authenticated Endpoint which can receive SHA-1/NTLM/prevalence data
-- [ ] Extract SHA-1 into Azure Blob Storage - either appending in order to file or updating count value
+- [x] Authenticated Endpoint which can receive SHA-1/NTLM/prevalence data
+- [x] Extract SHA-1 into Azure Blob Storage - either appending in order to file or updating count value
 - [ ] Add SHA-1/NTLM hashes to downloadable corpus - this should be updated monthly
 - [ ] Corresponding Cloudflare cache item for corpus or blob storage file must be invalidated - this shouldn't be more than once per day for a cache item
 

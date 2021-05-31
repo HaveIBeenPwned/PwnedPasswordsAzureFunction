@@ -16,8 +16,8 @@ namespace Functions
     /// </summary>
     public sealed class TableStorage
     {
-        private readonly CloudTable table;
-        private readonly CloudTable modifiedTable;
+        private readonly CloudTable _table;
+        private readonly CloudTable _modifiedTable;
         private readonly TraceWriter _log;
 
         public TableStorage(TraceWriter log)
@@ -34,8 +34,8 @@ namespace Functions
             var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
             var tableClient = storageAccount.CreateCloudTableClient();
             _log.Info($"Querying table: {tableName}");
-            table = tableClient.GetTableReference(tableName);
-            modifiedTable = tableClient.GetTableReference(modifiedTableName);
+            _table = tableClient.GetTableReference(tableName);
+            _modifiedTable = tableClient.GetTableReference(modifiedTableName);
         }
 
         /// <summary>
@@ -55,12 +55,11 @@ namespace Functions
             TableContinuationToken continuationToken = null;
             var i = 0;
 
-            var sw = new Stopwatch();
-            sw.Start();
+            var sw = Stopwatch.StartNew();
 
             do
             {
-                var response = table.ExecuteQuerySegmented(query, continuationToken);
+                var response = _table.ExecuteQuerySegmented(query, continuationToken);
 
                 foreach (var entity in response)
                 {
@@ -104,13 +103,11 @@ namespace Functions
             
             try
             {
-                var totalSw = new Stopwatch();
-                var searchSw = new Stopwatch();
-                totalSw.Start();
-                searchSw.Start();
+                var totalSw = Stopwatch.StartNew();
+                var searchSw = Stopwatch.StartNew();
 
                 var retrieve = TableOperation.Retrieve<PwnedPasswordEntity>(partitionKey, rowKey);
-                var result = await table.ExecuteAsync(retrieve);
+                var result = await _table.ExecuteAsync(retrieve);
 
                 searchSw.Stop();
                 _log.Info($"Search completed in {searchSw.ElapsedMilliseconds:n0}ms");
@@ -121,21 +118,21 @@ namespace Functions
                 {
                     pwnedPassword.Prevalence += append.Prevalence;
                     var update = TableOperation.Replace(pwnedPassword);
-                    result = await table.ExecuteAsync(update);
+                    result = await _table.ExecuteAsync(update);
                 }
                 else
                 {
                     var insert = TableOperation.Insert(new PwnedPasswordEntity(append));
-                    result = await table.ExecuteAsync(insert);
+                    result = await _table.ExecuteAsync(insert);
                 }
 
                 // Check if the key exists to save on transaction costs
                 var retrieveModified = TableOperation.Retrieve<PwnedPasswordEntity>("LastModified", partitionKey);
-                var modifiedResult = await modifiedTable.ExecuteAsync(retrieveModified);
+                var modifiedResult = await _modifiedTable.ExecuteAsync(retrieveModified);
                 if (modifiedResult.Result == null)
                 {
                     var updateModified = TableOperation.InsertOrReplace(new TableEntity("LastModified", partitionKey));
-                    result = await modifiedTable.ExecuteAsync(updateModified);
+                    result = await _modifiedTable.ExecuteAsync(updateModified);
                     _log.Info($"Adding new modified hash prefix {partitionKey} to modified table");
                 }
 
@@ -161,14 +158,13 @@ namespace Functions
             var filterCondition = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, "LastModified");
             var query = new TableQuery<TableEntity>().Where(filterCondition);
 
-            var sw = new Stopwatch();
-            sw.Start();
+            var sw = Stopwatch.StartNew();
 
             TableContinuationToken continuationToken = null;
 
             do
             {
-                var response = await modifiedTable.ExecuteQuerySegmentedAsync(query, continuationToken);
+                var response = await _modifiedTable.ExecuteQuerySegmentedAsync(query, continuationToken);
 
                 foreach (var item in response)
                 {
@@ -194,7 +190,7 @@ namespace Functions
                 ETag = "*"
             };
             var delete = TableOperation.Delete(entity);
-            await modifiedTable.ExecuteAsync(delete);
+            await _modifiedTable.ExecuteAsync(delete);
         }
     }
 }
