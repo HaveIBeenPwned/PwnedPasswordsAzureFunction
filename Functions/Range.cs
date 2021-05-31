@@ -42,7 +42,7 @@ namespace Functions
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing hash prefix");
             }
 
-            if (!IsValidPrefix(hashPrefix))
+            if (!hashPrefix.IsHexStringOfLength(5))
             {
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
             }

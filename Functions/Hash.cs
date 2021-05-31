@@ -1,6 +1,6 @@
-﻿using System.Security.Cryptography;
+﻿using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Functions
 {
@@ -9,32 +9,41 @@ namespace Functions
     /// </summary>
     public static class Hash
     {
+        private static readonly char[] HexChars = new[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        private static readonly SHA1 Hasher = new SHA1Managed();
+        private static readonly object HashLock = new object();
+
         /// <summary>
         /// Create a SHA-1 hash
         /// </summary>
         /// <param name="input"></param>
         /// <param name="source">Source encoding. Defaults to UTF-8. Pass in any other value for Unicode</param>
         /// <returns>The input string as a SHA-1 hash</returns>
-        public static string CreateSHA1Hash(string input, string source = "UTF8")
+        public static string CreateSHA1Hash(this string input, string source = "UTF8")
         {
             if (input == null)
             {
                 return null;
             }
 
-            using (var sha1 = new SHA1Managed())
+            var bytes = source == "UTF8" ? Encoding.UTF8.GetBytes(input) : Encoding.Unicode.GetBytes(input);
+            byte[] hash;
+            
+            // SHA1.ComputeHash is not thread safe, so let's lock. It's still quicker than creating a new instance each time.
+            lock (HashLock)
             {
-                var bytes = source == "UTF8" ? Encoding.UTF8.GetBytes(input) : Encoding.Unicode.GetBytes(input);
-                var hash = sha1.ComputeHash(bytes);
-                var sb = new StringBuilder(hash.Length * 2);
-
-                foreach (var b in hash)
-                {
-                    sb.Append(b.ToString("X2"));
-                }
-
-                return sb.ToString().ToUpper();
+                hash = Hasher.ComputeHash(bytes);
             }
+
+            var hexChars = new char[hash.Length * 2];
+            int index = 0;
+            for (int i = 0; i < hash.Length; i++)
+            {
+                hexChars[index++] = HexChars[(hash[i] >> 4) & 0b1111];
+                hexChars[index++] = HexChars[(hash[i]) & 0b1111];
+            }
+
+            return new string(hexChars);
         }
 
         /// <summary>
@@ -42,15 +51,24 @@ namespace Functions
         /// </summary>
         /// <param name="input">Input hash to check</param>
         /// <returns>Boolean representing if the input is valid or not</returns>
-        public static bool IsStringSHA1Hash(string input)
+        public static bool IsStringSHA1Hash(this string input) => input.IsHexStringOfLength(40);
+        
+        public static bool IsHexStringOfLength(this string input, int requiredLength)
         {
-            if (string.IsNullOrWhiteSpace(input))
+            if (string.IsNullOrWhiteSpace(input) || input?.Length != requiredLength)
             {
                 return false;
             }
 
-            var match = Regex.Match(input, @"\b([a-fA-F0-9]{40})\b");
-            return match.Length > 0;
+            for (int i = 0; i < requiredLength; i++)
+            {
+                if (!input[i].IsHex())
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -68,5 +86,8 @@ namespace Functions
             var match = Regex.Match(input, @"\b([a-fA-F0-9]{32})\b");
             return match.Length > 0;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsHex(this char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
     }
 }
