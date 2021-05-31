@@ -78,7 +78,7 @@ namespace Functions
         /// <param name="sha1Hash">The SHA-1 hash entry to update (in full)</param>
         /// <param name="prevalence">The amount to increment the prevalence by. Defaults to 1.</param>
         /// <returns>Returns true if a new entry was added, false if an existing entry was updated, and null if no entries were updated</returns>
-        public bool? UpdateHash(string sha1Hash, int prevalence = 1)
+        /*public bool? UpdateHash(string sha1Hash, int prevalence = 1)
         {
             // Ensure that the hash is upper case
             sha1Hash = sha1Hash.ToUpper();
@@ -215,22 +215,21 @@ namespace Functions
                 index = ~index;
             }
             list.Insert(index, line);
-        }
+        }*/
 
         /// <summary>
         /// Get all all of the available hash prefix blobs for an Azure Table Storage update
         /// </summary>
-        public async Task<List<Tuple<string, StreamWriter>>> GetHashPrefixBlobs()
+        public async Task<List<Tuple<string, StreamWriter>>> GetHashPrefixBlobs(List<string> modifiedPrefixes)
         {
             List<Tuple<string, StreamWriter>> hashPrefixBlobs = new List<Tuple<string, StreamWriter>>();
 
-            var blobList = _container.ListBlobs();
-            foreach (var blobItem in blobList)
+            foreach (var modifiedPrefix in modifiedPrefixes)
             {
-                CloudBlockBlob blob = blobItem as CloudBlockBlob;
+                var fileName = $"{modifiedPrefix}.txt";
+                CloudBlockBlob blob = _container.GetBlockBlobReference(fileName);
                 var stream = await blob.OpenWriteAsync();
-                var hashPrefix = blob.Name.Substring(0, 5);
-                hashPrefixBlobs.Add(new Tuple<string, StreamWriter>(hashPrefix, new StreamWriter(stream)));
+                hashPrefixBlobs.Add(new Tuple<string, StreamWriter>(modifiedPrefix, new StreamWriter(stream)));
             }
 
             return hashPrefixBlobs;

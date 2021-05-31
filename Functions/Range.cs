@@ -40,6 +40,11 @@ namespace Functions
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing hash prefix");
             }
 
+            if (!IsValidPrefix(hashPrefix))
+            {
+                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
+            }
+
             var storage = new TableStorage(log);
             var stream = storage.GetByHashesByPrefix(hashPrefix.ToUpper(), out var lastModified);
             var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, stream, null, lastModified);
@@ -179,19 +184,15 @@ namespace Functions
         [FunctionName("UpdateStorageBlobs")]
         public static async Task UpdateStorageBlobs(
 #if DEBUG
+            // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
+            // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
             [TimerTrigger("0 0 0 * * *", RunOnStartup = true)]
 #else
             [TimerTrigger("0 0 0 * * *")]
 #endif
         TimerInfo timer, TraceWriter log)
         {
-            // TODO: PRIORITY Optimise this by checking the Timestamp in Azure Table Storage
-            //       This will allow the updating of files that only *need* to be updated instead
-            //       of running this against every file (costly)
-
-            // TODO: Invalidate blob item at Cloudflare cache
-
-            log.Info($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last}");
+            log.Info($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last.ToUniversalTime()}");
 
             var sw = new Stopwatch();
             sw.Start();
@@ -199,8 +200,11 @@ namespace Functions
             var blobStorage = new BlobStorage(log);
             var tableStorage = new TableStorage(log);
 
+            // Get a list of the partitions which have been modified
+            var modifiedPartitions = tableStorage.GetModifiedPartitions(timer.ScheduleStatus.Last);
+
             // Get a list of Tuples with the hash prefix and a StreamWriter
-            var hashPrefixBlobs = await blobStorage.GetHashPrefixBlobs();
+            var hashPrefixBlobs = await blobStorage.GetHashPrefixBlobs(modifiedPartitions);
 
             foreach (var blob in hashPrefixBlobs)
             {
@@ -215,6 +219,8 @@ namespace Functions
 
                 streamWriter.Dispose();
             }
+
+            // TODO: Invalidate blob item at Cloudflare cache
 
             log.Info($"Successfully updated Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
         }

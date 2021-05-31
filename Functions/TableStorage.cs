@@ -2,6 +2,7 @@
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
 using System.IO;
@@ -130,6 +131,37 @@ namespace Functions
                 _log.Error("An error occured", e, "TableStorage");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Get the modified partitions since the given time limit
+        /// </summary>
+        /// <param name="timeLimit">The time for which all timestamps equal and after will be returned</param>
+        /// <returns>List of partition keys which have been modified</returns>
+        public List<string> GetModifiedPartitions(DateTimeOffset timeLimit)
+        {
+            List<string> modifiedPartitions = new List<string>();
+
+            var partitionFilter = TableQuery.GenerateFilterConditionForDate("Timestamp", QueryComparisons.GreaterThanOrEqual, timeLimit.UtcDateTime);
+            var query = new TableQuery<PwnedPasswordEntity>().Where(partitionFilter);
+
+            var sw = new Stopwatch();
+            sw.Start();
+
+            var response = table.ExecuteQuery(query);
+
+            foreach (var item in response)
+            {
+                if (!modifiedPartitions.Contains(item.PartitionKey))
+                {
+                    modifiedPartitions.Add(item.PartitionKey);
+                }
+            }
+
+            sw.Stop();
+            _log.Info($"Identifying {modifiedPartitions.Count} modified partitions since {timeLimit.UtcDateTime} took {sw.ElapsedMilliseconds:n0}ms");
+
+            return modifiedPartitions;
         }
     }
 }
