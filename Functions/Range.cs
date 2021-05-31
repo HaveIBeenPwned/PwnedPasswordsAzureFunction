@@ -45,9 +45,9 @@ namespace Functions
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
             }
 
-            var storage = new TableStorage(log);
+            var storage = new BlobStorage(log);
             var stream = storage.GetByHashesByPrefix(hashPrefix.ToUpper(), out var lastModified);
-            var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, stream, null, lastModified);
+            var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, null, stream, lastModified);
             return response;
         }
 
