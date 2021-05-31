@@ -144,7 +144,7 @@ namespace Functions
                 // Now insert the data
                 foreach (PwnedPasswordAppend item in data)
                 {
-                    var newEntry = storage.UpdateHash(item);
+                    var newEntry = await storage.UpdateHash(item);
                     if (newEntry == null)
                     {
                         // Returned null, that means that the item was unable to be added, internal server error
@@ -201,23 +201,17 @@ namespace Functions
             var tableStorage = new TableStorage(log);
 
             // Get a list of the partitions which have been modified
-            var modifiedPartitions = tableStorage.GetModifiedPartitions(timer.ScheduleStatus.Last);
+            var modifiedPartitions = await tableStorage.GetModifiedPartitions(timer.ScheduleStatus.Last);
 
-            // Get a list of Tuples with the hash prefix and a StreamWriter
-            var hashPrefixBlobs = await blobStorage.GetHashPrefixBlobs(modifiedPartitions);
-
-            foreach (var blob in hashPrefixBlobs)
+            foreach (var hashPrefix in modifiedPartitions)
             {
-                // Better than just having Item1/Item2
-                var partitionKey = blob.Item1;
-                var streamWriter = blob.Item2;
+                var hashPrefixFileContents = tableStorage.GetByHashesByPrefix(hashPrefix, out _);
 
-                // Get the correctly formatted data from Azure Table Storage
-                var hashPrefixFileContents = tableStorage.GetByHashesByPrefix(partitionKey, out _);
-                // Write this asynchronously to the file
-                await streamWriter.WriteAsync(hashPrefixFileContents);
+                // Write the updated values to the Blob Storage
+                await blobStorage.UpdateBlobFile(hashPrefix, hashPrefixFileContents);
 
-                streamWriter.Dispose();
+                // Now that we've successfully updated the Blob Storage, remove the partition from the table
+                await tableStorage.RemoveModifiedPartitionFromTable(hashPrefix);
             }
 
             // TODO: Invalidate blob item at Cloudflare cache

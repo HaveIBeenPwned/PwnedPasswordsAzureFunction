@@ -64,7 +64,7 @@ Once you have installed your IDE of choice, make sure that you install the relev
 
 ### Running Locally
 
-You should configure a `local.settings.json` file to hold the Configuration Manager values for `PwnedPasswordsConnectionString`, `BlobContainerName` and `TableStorageName` within the Functions project. Ensure that this file is **not** commited (it is ignored by Git within the Functions project). 
+You should configure a `local.settings.json` file to hold the Configuration Manager values for `PwnedPasswordsConnectionString`, `BlobContainerName`, `TableStorageName` and `ModifiedTableStorageName` within the Functions project. Ensure that this file is **not** commited (it is ignored by Git within the Functions project). 
 
 `local.settings.json` should contain the following correctly configured values:
 
@@ -75,7 +75,8 @@ You should configure a `local.settings.json` file to hold the Configuration Mana
         "AzureWebJobsStorage": "<Your Connection String from Azure Storage Emulator",
         "PwnedPasswordsConnectionString": "<Your Connection String from Azure Storage Emulator>",
         "BlobContainerName": "<Name of Blob Container you created>",
-        "TableStorageName": "<Name of Table Storage you created"
+        "TableStorageName": "<Name of Table Storage you created",
+        "ModifiedTableStorageName": "<Name of second Table Storage you created>"
     }
 }
 ```

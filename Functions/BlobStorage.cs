@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
 using System.IO;
@@ -14,7 +13,7 @@ namespace Functions
     /// <summary>
     /// Blob Storage instance to access hash prefix files
     /// </summary>
-    public class BlobStorage
+    public sealed class BlobStorage
     {
         private readonly CloudBlobContainer _container;
         private readonly TraceWriter _log;
@@ -72,21 +71,22 @@ namespace Functions
         }
 
         /// <summary>
-        /// Get all all of the available hash prefix blobs for an Azure Table Storage update
+        /// Updates the blob file with the hash prefix wih the provided file contents
         /// </summary>
-        public async Task<List<Tuple<string, StreamWriter>>> GetHashPrefixBlobs(List<string> modifiedPrefixes)
+        /// <param name="hashPrefix">Hash prefix file to update</param>
+        /// <param name="hashPrefixFileContents">Contents to write to the file</param>
+        public async Task UpdateBlobFile(string hashPrefix, string hashPrefixFileContents)
         {
-            List<Tuple<string, StreamWriter>> hashPrefixBlobs = new List<Tuple<string, StreamWriter>>();
+            var fileName = $"{hashPrefix}.txt";
 
-            foreach (var modifiedPrefix in modifiedPrefixes)
+            CloudBlockBlob blob = _container.GetBlockBlobReference(fileName);
+
+            var stream = await blob.OpenWriteAsync();
+
+            using (StreamWriter writer = new StreamWriter(stream))
             {
-                var fileName = $"{modifiedPrefix}.txt";
-                CloudBlockBlob blob = _container.GetBlockBlobReference(fileName);
-                var stream = await blob.OpenWriteAsync();
-                hashPrefixBlobs.Add(new Tuple<string, StreamWriter>(modifiedPrefix, new StreamWriter(stream)));
+                await writer.WriteAsync(hashPrefixFileContents);
             }
-
-            return hashPrefixBlobs;
         }
     }
 }
