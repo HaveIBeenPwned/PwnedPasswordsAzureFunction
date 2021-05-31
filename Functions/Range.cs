@@ -38,7 +38,7 @@ namespace Functions
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing hash prefix");
             }
 
-            if (!IsValidPrefix(hashPrefix))
+            if (!hashPrefix.IsHexStringOfLength(5))
             {
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
             }
@@ -47,26 +47,6 @@ namespace Functions
             var stream = storage.GetByHashesByPrefix(hashPrefix.ToUpper(), out var lastModified);
             var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, null, stream, lastModified);
             return response;
-        }
-
-        private static bool IsValidPrefix(string hashPrefix)
-        {
-            bool IsHex(char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
-
-            if (hashPrefix.Length != 5)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < 5; i++)
-            {
-                if (!IsHex(hashPrefix[i]))
-                {
-                    return false;
-                }
-            }
-
-            return true;
         }
     }
 }
