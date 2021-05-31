@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Functions
 {
@@ -52,28 +53,34 @@ namespace Functions
                 var partitionFilter = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, hashPrefix);
                 var query = new TableQuery<PwnedPasswordEntity>().Where(partitionFilter);
 
+                TableContinuationToken continuationToken = null;
+                var i = 0;
+
                 var sw = new Stopwatch();
                 sw.Start();
 
-                var response = table.ExecuteQuery(query);
+                do
+                {
+                    var response = table.ExecuteQuerySegmented(query, continuationToken);
+
+                    foreach (var entity in response)
+                    {
+                        responseBuilder.Append(entity.RowKey);
+                        responseBuilder.Append(":");
+                        responseBuilder.Append(entity.Prevalence);
+                        responseBuilder.Append("\n");
+                        // Use the last modified timestamp
+                        if (entity.Timestamp > lastModified)
+                        {
+                            lastModified = entity.Timestamp;
+                        }
+                        i++;
+                    }
+                }
+                while (continuationToken != null);
 
                 sw.Stop();
                 _log.Info($"Table Storage queried in {sw.ElapsedMilliseconds:n0}ms");
-
-                var i = 0;
-                foreach (var entity in response)
-                {
-                    responseBuilder.Append(entity.RowKey);
-                    responseBuilder.Append(":");
-                    responseBuilder.Append(entity.Prevalence);
-                    responseBuilder.Append("\n");
-                    // Use the last modified timestamp
-                    if (entity.Timestamp > lastModified)
-                    {
-                        lastModified = entity.Timestamp;
-                    }
-                    i++;
-                }
 
                 if (i == 0)
                 {
@@ -138,7 +145,7 @@ namespace Functions
         /// </summary>
         /// <param name="timeLimit">The time for which all timestamps equal and after will be returned</param>
         /// <returns>List of partition keys which have been modified</returns>
-        public List<string> GetModifiedPartitions(DateTimeOffset timeLimit)
+        public async Task<List<string>> GetModifiedPartitions(DateTimeOffset timeLimit)
         {
             List<string> modifiedPartitions = new List<string>();
 
@@ -148,15 +155,21 @@ namespace Functions
             var sw = new Stopwatch();
             sw.Start();
 
-            var response = table.ExecuteQuery(query);
+            TableContinuationToken continuationToken = null;
 
-            foreach (var item in response)
+            do
             {
-                if (!modifiedPartitions.Contains(item.PartitionKey))
+                var response = await table.ExecuteQuerySegmentedAsync(query, continuationToken);
+
+                foreach (var item in response)
                 {
-                    modifiedPartitions.Add(item.PartitionKey);
+                    if (!modifiedPartitions.Contains(item.PartitionKey))
+                    {
+                        modifiedPartitions.Add(item.PartitionKey);
+                    }
                 }
             }
+            while (continuationToken != null);
 
             sw.Stop();
             _log.Info($"Identifying {modifiedPartitions.Count} modified partitions since {timeLimit.UtcDateTime} took {sw.ElapsedMilliseconds:n0}ms");
