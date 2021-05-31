@@ -1,4 +1,4 @@
-using Functions.Services.HttpResponder;
+﻿using Functions.Services.HttpResponder;
 using Functions.Services.Storage;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -39,7 +39,7 @@ namespace Functions
                 return await _responderService.BadRequest(req, MissingHashPrefixMessage);
             }
 
-            if (!Regex.IsMatch(hashPrefix, "^[a-fA-F0-9]{5}$", RegexOptions.Compiled))
+            if (!IsValidPrefix(hashPrefix))
             {
                 _log.LogWarning(InvalidHashPrefixMessage, hashPrefix);
                 return await _responderService.BadRequest(req, InvalidHashPrefixMessage);
@@ -56,6 +56,26 @@ namespace Functions
                 _log.LogError(ex, "Something went wrong. Reason: {reason}", ex.Message);
                 return await _responderService.InternalServerError(req, "Something went wrong.");
             }
+        }
+
+        protected virtual bool IsValidPrefix(string hashPrefix)
+        {
+            bool IsHex(char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
+
+            if (hashPrefix.Length != 5)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < 5; i++)
+            {
+                if (!IsHex(hashPrefix[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }

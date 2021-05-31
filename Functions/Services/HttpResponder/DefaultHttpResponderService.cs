@@ -61,7 +61,7 @@ namespace Functions.Services.HttpResponder
             });
 
             httpResponseData.Headers.Add("Arr-Disable-Session-Affinity", "True");
-            httpResponseData.Headers.Add("Access-Control-Allow-Origin", "*");
+            httpResponseData.Headers.Add(HeaderNames.AccessControlAllowOrigin, "*");
         }
     }
 }
