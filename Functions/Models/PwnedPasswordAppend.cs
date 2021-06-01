@@ -24,5 +24,10 @@ namespace Functions
         /// </summary>
         [JsonProperty("prevalence")]
         public int Prevalence { get; set; }
+
+        public override string ToString()
+        {
+            return $"{SHA1Hash}|{NTLMHash}|{Prevalence}";
+        }
     }
 }

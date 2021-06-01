@@ -33,7 +33,6 @@ namespace Functions
 
             var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
             var tableClient = storageAccount.CreateCloudTableClient();
-            _log.Info($"Querying table: {tableName}");
             _table = tableClient.GetTableReference(tableName);
             _metadataTable = tableClient.GetTableReference(metadataTableName);
         }
@@ -55,8 +54,6 @@ namespace Functions
             TableContinuationToken continuationToken = null;
             var i = 0;
 
-            var sw = Stopwatch.StartNew();
-
             do
             {
                 var response = _table.ExecuteQuerySegmented(query, continuationToken);
@@ -77,9 +74,6 @@ namespace Functions
             }
             while (continuationToken != null);
 
-            sw.Stop();
-            _log.Info($"Table Storage queried in {sw.ElapsedMilliseconds:n0}ms");
-
             if (i == 0)
             {
                 _log.Warning($"Table Storage couldn't find any matching partition keys for \"{hashPrefix}\"");
@@ -91,10 +85,10 @@ namespace Functions
         /// <summary>
         /// Updates the prevalence for the given hash by a specified amount
         /// </summary>
-        /// <param name="sha1Hash">The SHA-1 hash entry to update (in full)</param>
-        /// <param name="prevalence">The amount to increment the prevalence by. Defaults to 1.</param>
+        /// <param name="append">The append request to process</param>
+        /// <param name="contentID">Hash of the deserialised content and the client's IP address for idempotency</param>
         /// <returns>Returns true if a new entry was added, false if an existing entry was updated, and null if no entries were updated</returns>
-        public async Task<bool?> UpdateHash(PwnedPasswordAppend append)
+        public async Task<EUpdateHashResult> UpdateHash(PwnedPasswordAppend append, string contentID)
         {
             // Ensure that the hash is upper case
             append.SHA1Hash = append.SHA1Hash.ToUpper();
@@ -106,13 +100,27 @@ namespace Functions
                 var totalSw = Stopwatch.StartNew();
                 var searchSw = Stopwatch.StartNew();
 
+                // First check that this request isn't in the metadata table
+                var retrieveDuplicateRequest = TableOperation.Retrieve<PwnedPasswordEntity>("DuplicateRequest", contentID);
+                var duplicateRequestResult = await _metadataTable.ExecuteAsync(retrieveDuplicateRequest);
+
+                if (duplicateRequestResult.Result != null)
+                {
+                    searchSw.Stop();
+                    totalSw.Stop();
+                    _log.Info($"Duplicate update request detected in {searchSw.ElapsedMilliseconds:n0}ms");
+                    return EUpdateHashResult.DuplicateRequest;
+                }
+
                 var retrieve = TableOperation.Retrieve<PwnedPasswordEntity>(partitionKey, rowKey);
                 var result = await _table.ExecuteAsync(retrieve);
 
                 searchSw.Stop();
-                _log.Info($"Search completed in {searchSw.ElapsedMilliseconds:n0}ms");
+                _log.Info($"Search for duplicate completed in {searchSw.ElapsedMilliseconds:n0}ms");
 
                 var pwnedPassword = result.Result as PwnedPasswordEntity;
+
+                var insertOrUpdateSw = Stopwatch.StartNew();
 
                 if (pwnedPassword != null)
                 {
@@ -126,6 +134,11 @@ namespace Functions
                     result = await _table.ExecuteAsync(insert);
                 }
 
+                insertOrUpdateSw.Stop();
+                _log.Info($"Insert/Update took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
+
+                var lastModifiedSw = Stopwatch.StartNew();
+
                 // Check if the key exists to save on transaction costs
                 var retrieveModified = TableOperation.Retrieve<PwnedPasswordEntity>("LastModified", partitionKey);
                 var modifiedResult = await _metadataTable.ExecuteAsync(retrieveModified);
@@ -133,15 +146,26 @@ namespace Functions
                 {
                     var updateModified = TableOperation.InsertOrReplace(new TableEntity("LastModified", partitionKey));
                     result = await _metadataTable.ExecuteAsync(updateModified);
-                    _log.Info($"Adding new modified hash prefix {partitionKey} to modified table");
                 }
 
-                return pwnedPassword == null;
+                lastModifiedSw.Stop();
+                _log.Info($"LastModified took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
+
+                var duplicateSw = Stopwatch.StartNew();
+                var insertRequest = TableOperation.Insert(new TableEntity("DuplicateRequest", contentID));
+                await _metadataTable.ExecuteAsync(insertRequest);
+                duplicateSw.Stop();
+                _log.Info($"DuplicateRequest took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
+
+                totalSw.Stop();
+                _log.Info($"Total update completed in {totalSw.ElapsedMilliseconds:n0}ms");
+
+                return (pwnedPassword == null) ? EUpdateHashResult.Added : EUpdateHashResult.Updated;
             }
             catch (Exception e)
             {
                 _log.Error("An error occured", e, "TableStorage");
-                return null;
+                return EUpdateHashResult.Error;
             }
         }
 
@@ -185,12 +209,66 @@ namespace Functions
         /// <param name="hashPrefix">The hash prefix to remove from the Storage Table</param>
         public async Task RemoveModifiedPartitionFromTable(string hashPrefix)
         {
-            var entity = new TableEntity("LastModified", hashPrefix)
+            await DeleteItemFromMetadataTable("LastModified", hashPrefix);
+        }
+
+
+        private async Task DeleteItemFromMetadataTable(string partitionKey, string rowKey)
+        {
+            var entity = new TableEntity(partitionKey, rowKey)
             {
                 ETag = "*"
             };
             var delete = TableOperation.Delete(entity);
             await _metadataTable.ExecuteAsync(delete);
         }
+
+        /// <summary>
+        /// Deletes all items 
+        /// </summary>
+        public async Task RemoveOldDuplicateRequests()
+        {
+            var now = DateTimeOffset.UtcNow;
+            List<TableEntity> deleteList = new List<TableEntity>();
+
+            var filterCondition = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, "DuplicateRequest");
+            var query = new TableQuery<TableEntity>().Where(filterCondition);
+
+            var sw = Stopwatch.StartNew();
+
+            TableContinuationToken continuationToken = null;
+
+            do
+            {
+                var response = await _metadataTable.ExecuteQuerySegmentedAsync(query, continuationToken);
+
+                foreach (var item in response)
+                {
+                    deleteList.Add(item);
+                }
+            }
+            while (continuationToken != null);
+
+            var deleteCount = 0;
+            for (int i = 0; i < deleteList.Count; i++)
+            {
+                if (now.AddMinutes(-30) > deleteList[i].Timestamp)
+                {
+                    await DeleteItemFromMetadataTable("DuplicateRequest", deleteList[i].RowKey);
+                    deleteCount++;
+                }
+            }
+
+            sw.Stop();
+            _log.Info($"Cleaning up {deleteCount} modified partitions took {sw.ElapsedMilliseconds:n0}ms");
+        }
+    }
+
+    public enum EUpdateHashResult : int
+    {
+        Added = 0,
+        Updated = 1,
+        DuplicateRequest = 2,
+        Error = 4,
     }
 }

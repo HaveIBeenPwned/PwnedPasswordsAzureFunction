@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -80,9 +81,14 @@ namespace Functions
                     // Json wasn't parsed from POST body, bad request
                     return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing JSON body");
                 }
-
+                
                 for (int i = 0; i < data.Length; i++)
                 {
+                    if (data[i] == null)
+                    {
+                        // Null item in the array, bad request
+                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Null PwnedPassword append entity at " + i);
+                    }
 
                     if (string.IsNullOrEmpty(data[i].SHA1Hash))
                     {
@@ -113,31 +119,34 @@ namespace Functions
                     }
                 }
 
-                log.Info("Received valid Pwned Passwords append request");
-
                 var storage = new TableStorage(log);
 
                 var failedAttempts = new List<PwnedPasswordAppend>();
 
+                string originIP = "";
+                if (req.Headers.TryGetValues("CF-Connecting-IP", out var ip))
+                {
+                    originIP = ip.FirstOrDefault();
+                }
+                else
+                {
+                    log.Warning("Request does not have a CF-Connecting-IP header, using empty string as client identifier");
+                }
+
                 // Now insert the data
                 for (int i = 0; i < data.Length; i++)
                 {
-                    var newEntry = await storage.UpdateHash(data[i]);
+                    var contentID = $"{originIP}|{data[i]}".CreateSHA1Hash();
+                    var newEntry = await storage.UpdateHash(data[i], contentID);
 
-                    if (newEntry.HasValue)
+                    switch (newEntry)
                     {
-                        if (newEntry.Value)
-                        {
-                            log.Info("Added new entry to Pwned Passwords");
-                        }
-                        else
-                        {
-                            log.Info("Updated existing entry in Pwned Passwords");
-                        }
-                    }
-                    else
-                    {
-                        failedAttempts.Add(data[i]);
+                        case EUpdateHashResult.DuplicateRequest:
+                            log.Info("Client made duplicate request");
+                            break;
+                        case EUpdateHashResult.Error:
+                            failedAttempts.Add(data[i]);
+                            break;
                     }
                 }
 
@@ -193,6 +202,13 @@ namespace Functions
             // Get a list of the partitions which have been modified
             var modifiedPartitions = await tableStorage.GetModifiedPartitions(timer.ScheduleStatus.Last);
 
+            if (modifiedPartitions.Length == 0)
+            {
+                sw.Stop();
+                log.Info($"Detected no changes needed for Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
+                return;
+            }
+
             var updateSw = Stopwatch.StartNew();
 
             for (int i = 0; i < modifiedPartitions.Length; i++)
@@ -217,6 +233,22 @@ namespace Functions
 
             sw.Stop();
             log.Info($"Successfully updated Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
+        }
+
+        [FunctionName("ClearIdempotencyCache")]
+        public static async Task ClearIdempotencyCache(
+#if DEBUG
+            // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
+            // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
+            [TimerTrigger("0 0 */1 * * *", RunOnStartup = true)]
+#else
+            [TimerTrigger("0 0 */1 * * *")]
+#endif
+        TimerInfo timer, TraceWriter log)
+        {
+            var tableStorage = new TableStorage(log);
+            await tableStorage.RemoveOldDuplicateRequests();
+            log.Info($"Next cleanup will occur at {timer.ScheduleStatus.Next}");
         }
     }
 }
