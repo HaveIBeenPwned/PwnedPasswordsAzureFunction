@@ -47,12 +47,18 @@ namespace Functions
         }
 
         /// <summary>
-        /// Check that the string is a valid SHA-1 hash with regex
+        /// Check that the string is a valid SHA-1 hexadecimal hash.
         /// </summary>
         /// <param name="input">Input hash to check</param>
-        /// <returns>Boolean representing if the input is valid or not</returns>
+        /// <returns>True if the string represents a valid SHA-1 hexadecimal hash, otherwise false.</returns>
         public static bool IsStringSHA1Hash(this string input) => input.IsHexStringOfLength(40);
         
+        /// <summary>
+        /// Check that a string is a specific length of hexadecimal characters
+        /// </summary>
+        /// <param name="input">The string to check</param>
+        /// <param name="requiredLength">The required length of the string</param>
+        /// <returns>True if the string is a valid length of hexadecimal characters, otherwise false.</returns>
         public static bool IsHexStringOfLength(this string input, int requiredLength)
         {
             if (string.IsNullOrWhiteSpace(input) || input?.Length != requiredLength)

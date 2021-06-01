@@ -1,0 +1,42 @@
+name: .NET
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: CI Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup .NET 5.0
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.x
+    
+    - name: Setup .NET Core 2.0
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 2.0.x
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Test
+      run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+    
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v2  # upload test results
+      if: success() || failure()        # run this step even if previous step failed
+      with:
+        name: test-results
+        path: Tests/TestResults/test-results.trx
+    
