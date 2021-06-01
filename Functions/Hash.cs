@@ -76,16 +76,7 @@ namespace Functions
         /// </summary>
         /// <param name="input">Input hash to check</param>
         /// <returns>Boolean representing if the input is valid or not</returns>
-        public static bool IsStringNTLMHash(string input)
-        {
-            if (string.IsNullOrWhiteSpace(input))
-            {
-                return false;
-            }
-
-            var match = Regex.Match(input, @"\b([a-fA-F0-9]{32})\b");
-            return match.Length > 0;
-        }
+        public static bool IsStringNTLMHash(this string input) => input.IsHexStringOfLength(32);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsHex(this char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');

@@ -54,31 +54,6 @@ namespace Functions
         }
 
         /// <summary>
-        /// Check that the prefix is valid
-        /// </summary>
-        /// <param name="hashPrefix">The hash prefix to validate</param>
-        /// <returns>Boolean determining if the prefix is valid</returns>
-        private static bool IsValidPrefix(string hashPrefix)
-        {
-            bool IsHex(char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
-
-            if (hashPrefix.Length != 5)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < 5; i++)
-            {
-                if (!IsHex(hashPrefix[i]))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        /// <summary>
         /// Handle a request to /range/append
         /// </summary>
         /// <param name="req">The request message from the client</param>
@@ -114,7 +89,7 @@ namespace Functions
                         // Empty SHA-1 hash, bad request
                         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing SHA-1 hash for item at index " + i);
                     }
-                    if (!Hash.IsStringSHA1Hash(data[i].SHA1Hash))
+                    if (!data[i].SHA1Hash.IsStringSHA1Hash())
                     {
                         // Invalid SHA-1 hash, bad request
                         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The SHA-1 hash was not in a valid format for item at index " + i);
@@ -125,7 +100,7 @@ namespace Functions
                         // Empty NTLM hash, bad request
                         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing NTLM hash for item at index " + (i + 1));
                     }
-                    if (!Hash.IsStringNTLMHash(data[i].NTLMHash))
+                    if (!data[i].NTLMHash.IsStringNTLMHash())
                     {
                         // Invalid NTLM hash, bad request
                         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The NTLM hash was not in a valid format for item at index " + i);

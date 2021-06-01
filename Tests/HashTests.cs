@@ -46,11 +46,26 @@ namespace Tests
         [InlineData("f3bbBD66A63D4BF1747940578EC3D0103530E21D", true)]
         [InlineData("G3BBBD66A63D4BF1747940578EC3D0103530E21D", false)]
         [InlineData("F3BBBD66A63D4BF1747940578EC3D0103530E21DAA", false)]
+        [InlineData("31D6CFE0D16AE931B73C59D7E0C089C0", false)]
         [InlineData("", false)]
         [InlineData(null, false)]
         public void IsSHA1Hash(string input, bool expected)
         {
-            Assert.Equal(expected, Hash.IsStringSHA1Hash(input));
+            Assert.Equal(expected, input.IsStringSHA1Hash());
+        }
+
+        [Theory]
+        [InlineData("31d6cfe0d16ae931b73c59d7e0c089c0", true)]
+        [InlineData("31D6CFE0D16AE931B73C59D7E0C089C0", true)]
+        [InlineData("31D6CFE0D16AE931B73C59D7E0C089C0A", false)]
+        [InlineData("G1D6CFE0D16AE931B73C59D7E0C089C0", false)]
+        [InlineData("31D6CFE0D16AE931B73C59D7E0C089C", false)]
+        [InlineData("F4A69973E7B0BF9D160F9F60E3C3ACD2494BEB0D", false)]
+        [InlineData("", false)]
+        [InlineData(null, false)]
+        public void IsNTLMHash(string input, bool expected)
+        {
+            Assert.Equal(expected, input.IsStringNTLMHash());
         }
     }
 }
