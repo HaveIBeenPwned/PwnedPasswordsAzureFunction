@@ -53,14 +53,18 @@ Please ensure that you read our [Code of Conduct](/CODE_OF_CONDUCT.md) first.
 
 ### Prerequisites
 
-It is recommended to use [Visual Studio 2019](https://visualstudio.microsoft.com/downloads/) or [VS Code](https://code.visualstudio.com/) for working on Pwned Passwords Azure Function. You will also need the [.Net Framework 4.6.2 Developer Pack](https://dotnet.microsoft.com/download/dotnet-framework/net462) installed.
+It is recommended to use [Visual Studio 2019](https://visualstudio.microsoft.com/downloads/), [VS Code](https://code.visualstudio.com/), or [JetBrains Rider](https://www.jetbrains.com/rider) for working on Pwned Passwords Azure Function. You will also need the the [.NET Core 3.1 SDK](https://dotnet.microsoft.com/download/dotnet/3.1) installed.
 
 Once you have installed your IDE of choice, make sure that you install the relevant Azure Functions extensions.
 
-- For VS Code, use the VS Code [Azure Functions](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurefunctions) extension
 - For Visual Studio 2019, make sure you have installed the [Azure Development workload](https://docs.microsoft.com/en-us/azure/azure-functions/functions-create-your-first-function-visual-studio#prerequisites). If you haven't, use the Visual Studio Installer to do so (instructions on this can be found [here](https://docs.microsoft.com/en-us/dotnet/azure/configure-visual-studio)).
+- For VS Code, use the VS Code [Azure Functions](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurefunctions) extension.
+- For JetBrains Rider, install the [Azure Toolkit](https://plugins.jetbrains.com/plugin/11220-azure-toolkit-for-rider) and make sure to install the Azure Functions core tools from the settings (*Tools \| Azure \| Functions*).
 
-[Azure Storage Emulator](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-emulator) will also be needed for local emulation of Azure Blob Storage.
+An Azure Storage emulator will also be needed for local emulation of Azure Blob Storage:
+
+- [Azure Storage Emulator](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-emulator) (Windows)
+- [Azurite](https://github.com/Azure/Azurite) (Windows, macOS, Linux)
 
 ### Running Locally
 
