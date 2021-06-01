@@ -185,27 +185,35 @@ namespace Functions
         {
             log.Info($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last.ToUniversalTime()}");
 
-            var sw = Stopwatch.StartNew();
-
             var blobStorage = new BlobStorage(log);
             var tableStorage = new TableStorage(log);
+
+            var sw = Stopwatch.StartNew();
 
             // Get a list of the partitions which have been modified
             var modifiedPartitions = await tableStorage.GetModifiedPartitions(timer.ScheduleStatus.Last);
 
-            foreach (var hashPrefix in modifiedPartitions)
+            var updateSw = Stopwatch.StartNew();
+
+            for (int i = 0; i < modifiedPartitions.Length; i++)
             {
-                var hashPrefixFileContents = tableStorage.GetByHashesByPrefix(hashPrefix, out _);
+                var hashPrefixFileContents = tableStorage.GetByHashesByPrefix(modifiedPartitions[i], out _);
 
                 // Write the updated values to the Blob Storage
-                await blobStorage.UpdateBlobFile(hashPrefix, hashPrefixFileContents);
+                await blobStorage.UpdateBlobFile(modifiedPartitions[i], hashPrefixFileContents);
 
                 // Now that we've successfully updated the Blob Storage, remove the partition from the table
-                await tableStorage.RemoveModifiedPartitionFromTable(hashPrefix);
+                await tableStorage.RemoveModifiedPartitionFromTable(modifiedPartitions[i]);
             }
+            updateSw.Stop();
+            log.Info($"Writing to Blob Storage took {sw.ElapsedMilliseconds:n0}ms");
 
-            // TODO: Invalidate blob item at Cloudflare cache
-            // https://api.cloudflare.com/#zone-purge-files-by-url
+            if (modifiedPartitions.Length > 0)
+            {
+                var cloudflare = new Cloudflare(log);
+
+                await cloudflare.PurgeFile(modifiedPartitions);
+            }
 
             sw.Stop();
             log.Info($"Successfully updated Blob Storage in {sw.ElapsedMilliseconds:n0}ms");

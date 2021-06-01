@@ -17,7 +17,7 @@ namespace Functions
     public sealed class TableStorage
     {
         private readonly CloudTable _table;
-        private readonly CloudTable _modifiedTable;
+        private readonly CloudTable _metadataTable;
         private readonly TraceWriter _log;
 
         public TableStorage(TraceWriter log)
@@ -29,13 +29,13 @@ namespace Functions
 
             var storageConnectionString = ConfigurationManager.AppSettings["PwnedPasswordsConnectionString"];
             var tableName = ConfigurationManager.AppSettings["TableStorageName"];
-            var modifiedTableName = ConfigurationManager.AppSettings["ModifiedTableStorageName"];
+            var metadataTableName = ConfigurationManager.AppSettings["MetadataTableStorageName"];
 
             var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
             var tableClient = storageAccount.CreateCloudTableClient();
             _log.Info($"Querying table: {tableName}");
             _table = tableClient.GetTableReference(tableName);
-            _modifiedTable = tableClient.GetTableReference(modifiedTableName);
+            _metadataTable = tableClient.GetTableReference(metadataTableName);
         }
 
         /// <summary>
@@ -128,11 +128,11 @@ namespace Functions
 
                 // Check if the key exists to save on transaction costs
                 var retrieveModified = TableOperation.Retrieve<PwnedPasswordEntity>("LastModified", partitionKey);
-                var modifiedResult = await _modifiedTable.ExecuteAsync(retrieveModified);
+                var modifiedResult = await _metadataTable.ExecuteAsync(retrieveModified);
                 if (modifiedResult.Result == null)
                 {
                     var updateModified = TableOperation.InsertOrReplace(new TableEntity("LastModified", partitionKey));
-                    result = await _modifiedTable.ExecuteAsync(updateModified);
+                    result = await _metadataTable.ExecuteAsync(updateModified);
                     _log.Info($"Adding new modified hash prefix {partitionKey} to modified table");
                 }
 
@@ -150,7 +150,7 @@ namespace Functions
         /// </summary>
         /// <param name="timeLimit">The time for which all timestamps equal and after will be returned</param>
         /// <returns>List of partition keys which have been modified</returns>
-        public async Task<List<string>> GetModifiedPartitions(DateTimeOffset timeLimit)
+        public async Task<string[]> GetModifiedPartitions(DateTimeOffset timeLimit)
         {
             List<string> modifiedPartitions = new List<string>();
 
@@ -164,7 +164,7 @@ namespace Functions
 
             do
             {
-                var response = await _modifiedTable.ExecuteQuerySegmentedAsync(query, continuationToken);
+                var response = await _metadataTable.ExecuteQuerySegmentedAsync(query, continuationToken);
 
                 foreach (var item in response)
                 {
@@ -176,7 +176,7 @@ namespace Functions
             sw.Stop();
             _log.Info($"Identifying {modifiedPartitions.Count} modified partitions since {timeLimit.UtcDateTime} took {sw.ElapsedMilliseconds:n0}ms");
 
-            return modifiedPartitions;
+            return modifiedPartitions.ToArray();
         }
 
         /// <summary>
@@ -190,7 +190,7 @@ namespace Functions
                 ETag = "*"
             };
             var delete = TableOperation.Delete(entity);
-            await _modifiedTable.ExecuteAsync(delete);
+            await _metadataTable.ExecuteAsync(delete);
         }
     }
 }
