@@ -39,6 +39,9 @@ bld/
 # Visual Studio 2017 auto generated files
 Generated\ Files/
 
+# Rider options directory
+.idea/
+
 # MSTest test Results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*

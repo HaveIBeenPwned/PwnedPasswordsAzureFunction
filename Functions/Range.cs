@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -14,14 +14,16 @@ namespace Functions
     public class Range
     {
         private readonly IConfiguration _configuration;
+        private readonly ILogger _log;
 
         /// <summary>
         /// Pwned Passwords - Range handler
         /// </summary>
         /// <param name="configuration">Configuration instance</param>
-        public Range(IConfiguration configuration)
+        public Range(IConfiguration configuration, ILoggerFactory logFactory)
         {
             _configuration = configuration;
+            _log = logFactory.CreateLogger("Range");
         }
         
         /// <summary>
@@ -31,13 +33,12 @@ namespace Functions
         /// <param name="hashPrefix">The passed hash prefix</param>
         /// <param name="log">Logger instance to emit diagnostic information to</param>
         /// <returns></returns>
-        [FunctionName("Range-GET")]
-        public Task<HttpResponseMessage> RunAsync(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestMessage req,
-            string hashPrefix,
-            ILogger log)
+        [Function("Range-GET")]
+        public Task<HttpResponseData> RunAsync(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestData req,
+            string hashPrefix)
         {
-            return GetData(req, hashPrefix, log);
+            return GetData(req, hashPrefix);
         }
 
         /// <summary>
@@ -47,10 +48,9 @@ namespace Functions
         /// <param name="hashPrefix">The passed hash prefix</param>
         /// <param name="log">Logger instance to emit diagnostic information to</param>
         /// <returns>Http Response message to return to the client</returns>
-        private async Task<HttpResponseMessage> GetData(
-            HttpRequestMessage req,
-            string hashPrefix,
-            ILogger log)
+        private async Task<HttpResponseData> GetData(
+            HttpRequestData req,
+            string hashPrefix)
         {
             if (string.IsNullOrEmpty(hashPrefix))
             {
@@ -62,7 +62,7 @@ namespace Functions
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
             }
 
-            var storage = new BlobStorage(_configuration, log);
+            var storage = new BlobStorage(_configuration, _log);
             var entry = await storage.GetByHashesByPrefix(hashPrefix.ToUpper());
             if (entry == null)
             {
