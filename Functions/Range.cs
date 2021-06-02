@@ -21,7 +21,7 @@ namespace Functions
         /// <param name="configuration">Configuration instance</param>
         public Range(IConfiguration configuration)
         {
-            this._configuration = configuration;
+            _configuration = configuration;
         }
         
         /// <summary>
