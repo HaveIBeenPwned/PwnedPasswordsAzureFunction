@@ -103,7 +103,6 @@ namespace Functions
                 // First check that this request isn't in the local cache
                 if (_localCache.Contains(contentID))
                 {
-                    _localCache.Add(contentID);
                     searchSw.Stop();
                     totalSw.Stop();
                     _log.LogInformation($"Duplicate update request detected by local cache in {searchSw.ElapsedMilliseconds:n0}ms");
@@ -161,6 +160,7 @@ namespace Functions
                 lastModifiedSw.Stop();
                 _log.LogInformation($"LastModified took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
 
+                _localCache.Add(contentID);
                 var duplicateSw = Stopwatch.StartNew();
                 var insertRequest = TableOperation.Insert(new TableEntity("DuplicateRequest", contentID));
                 await _metadataTable.ExecuteAsync(insertRequest);
