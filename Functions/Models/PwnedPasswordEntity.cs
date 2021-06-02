@@ -26,13 +26,13 @@ namespace Functions
         /// Creates a new PwnedPassword entity row from a <see cref="PwnedPasswordAppend"/>
         /// <param name="appendRequest">PwnedPassword append model data to use</param>
         /// </summary>
-        public PwnedPasswordEntity(PwnedPasswordAppend appendRequest, int currentPrevalence = 0)
+        public PwnedPasswordEntity(PwnedPasswordAppend appendRequest)
         {
             // Uses the pre-Blob Storage system of using the Partition key as the first five characters of
             // the hash and the row key as the remainder of the hash
             // See https://www.troyhunt.com/i-wanna-go-fast-why-searching-through-500m-pwned-passwords-is-so-quick/
-            PartitionKey = appendRequest.SHA1Hash.Substring(0, 5);
-            RowKey = appendRequest.SHA1Hash.Substring(5);
+            PartitionKey = appendRequest.PartitionKey;
+            RowKey = appendRequest.RowKey;
             NTLMHash = appendRequest.NTLMHash;
             Prevalence = appendRequest.Prevalence;
         }

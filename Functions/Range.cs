@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -72,6 +72,8 @@ namespace Functions
 
             try
             {
+                var validateSw = Stopwatch.StartNew();
+
                 // Get JSON POST request body
                 PwnedPasswordAppend[] data = await req.Content.ReadAsAsync<PwnedPasswordAppend[]>();
 
@@ -118,6 +120,9 @@ namespace Functions
                         return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid prevalence value for item at index " + i);
                     }
                 }
+
+                validateSw.Stop();
+                log.Info($"Validated {data.Length} items in {validateSw.ElapsedMilliseconds:n0}ms");
 
                 var storage = new TableStorage(log);
 
@@ -166,12 +171,12 @@ namespace Functions
             catch (JsonReaderException)
             {
                 // Everything can be string, but Prevalence must be an int, so it can cause a JsonReader exception, Bad Request
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid prevalence value");
+                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Unable to parse JSON");
             }
             catch (JsonSerializationException)
             {
                 // Invalid array passed, Bad Request
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid JSON array");
+                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Unable to parse JSON");
             }
         }
 

@@ -1,5 +1,4 @@
 ﻿using Functions;
-
 using Xunit;
 
 namespace Tests

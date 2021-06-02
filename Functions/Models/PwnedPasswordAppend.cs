@@ -5,19 +5,64 @@ namespace Functions
     /// <summary>
     /// Wrapper class for holding the data for an append operation
     /// </summary>
-    public class PwnedPasswordAppend
+    public sealed class PwnedPasswordAppend
     {
+        private string _sha1Hash;
+
+        private string _partitionKey;
+        private string _rowKey;
+
         /// <summary>
         /// The SHA-1 hash passed in an append operation
         /// </summary>
         [JsonProperty("sha1Hash")]
-        public string SHA1Hash { get; set; }
+        public string SHA1Hash
+        {
+            get
+            {
+                return _sha1Hash;
+            }
+            set
+            {
+                _sha1Hash = value.ToUpper();
+                _partitionKey = _sha1Hash.Substring(0, 5);
+                _rowKey = _sha1Hash.Substring(5);
+            }
+        }
+
+        /// <summary>
+        /// Gets the partition key for the proposed append operation
+        /// </summary>
+        public string PartitionKey
+        {
+            get { return _partitionKey; }
+        }
+
+        /// <summary>
+        /// Get the row key for the proposed append operation
+        /// </summary>
+        public string RowKey
+        {
+            get { return _rowKey; }
+        }
+
+        private string _ntlmHash;
 
         /// <summary>
         /// The NTLM hash passed in an append operation
         /// </summary>
         [JsonProperty("ntlmHash")]
-        public string NTLMHash { get; set; }
+        public string NTLMHash
+        {
+            get
+            {
+                return _ntlmHash;
+            }
+            set
+            {
+                _ntlmHash = value.ToUpper();
+            }
+        }
 
         /// <summary>
         /// The prevalence of this SHA-1/NTLM pair in the corpus

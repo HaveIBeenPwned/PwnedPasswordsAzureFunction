@@ -49,6 +49,12 @@ namespace Functions
         /// <returns>Boolean stating if Cloudflare returned a success in the JSON response</returns>
         public async Task<bool> PurgeFile(string[] hashPrefixes)
         {
+            if (!CanMakeCloudflareRequest())
+            {
+                _log.Warning("Unable to make Cloudflare request due to missing configuration values");
+                return false;
+            }
+
             var urlArray = new JArray();
             for (int i = 0; i < hashPrefixes.Length; i++)
             {
@@ -56,12 +62,6 @@ namespace Functions
             }
 
             var requestContent = JsonConvert.SerializeObject(urlArray);
-
-            if (!CanMakeCloudflareRequest())
-            {
-                _log.Warning("Unable to make Cloudflare request due to missing configuration values");
-                return false;
-            }
 
             var url = string.Format(PURGE_FILE, _zoneIdentifier);
 
@@ -80,7 +80,7 @@ namespace Functions
             }
             else
             {
-                _log.Warning($"Cloudflare Request failed in {sw.ElapsedMilliseconds:n0}ms");
+                _log.Error($"Cloudflare Request failed in {sw.ElapsedMilliseconds:n0}ms");
                 _log.Error(content);
             }
 

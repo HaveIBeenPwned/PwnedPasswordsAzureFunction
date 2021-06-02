@@ -20,6 +20,8 @@ namespace Functions
         private readonly CloudTable _metadataTable;
         private readonly TraceWriter _log;
 
+        private static HashSet<string> _localCache = new HashSet<string>();
+
         public TableStorage(TraceWriter log)
         {
             _log = log;
@@ -90,17 +92,21 @@ namespace Functions
         /// <returns>Returns true if a new entry was added, false if an existing entry was updated, and null if no entries were updated</returns>
         public async Task<EUpdateHashResult> UpdateHash(PwnedPasswordAppend append, string contentID)
         {
-            // Ensure that the hash is upper case
-            append.SHA1Hash = append.SHA1Hash.ToUpper();
-            var partitionKey = append.SHA1Hash.Substring(0, 5);
-            var rowKey = append.SHA1Hash.Substring(5);
-            
             try
             {
                 var totalSw = Stopwatch.StartNew();
                 var searchSw = Stopwatch.StartNew();
 
-                // First check that this request isn't in the metadata table
+                // First check that this request isn't in the local cache
+                if (_localCache.Contains(contentID))
+                {
+                    searchSw.Stop();
+                    totalSw.Stop();
+                    _log.Info($"Duplicate update request detected by local cache in {searchSw.ElapsedMilliseconds:n0}ms");
+                    return EUpdateHashResult.DuplicateRequest;
+                }
+
+                // Cache miss, check it isn't in the metadata table
                 var retrieveDuplicateRequest = TableOperation.Retrieve<PwnedPasswordEntity>("DuplicateRequest", contentID);
                 var duplicateRequestResult = await _metadataTable.ExecuteAsync(retrieveDuplicateRequest);
 
@@ -108,11 +114,11 @@ namespace Functions
                 {
                     searchSw.Stop();
                     totalSw.Stop();
-                    _log.Info($"Duplicate update request detected in {searchSw.ElapsedMilliseconds:n0}ms");
+                    _log.Info($"Duplicate update request detected by metadata table in {searchSw.ElapsedMilliseconds:n0}ms");
                     return EUpdateHashResult.DuplicateRequest;
                 }
 
-                var retrieve = TableOperation.Retrieve<PwnedPasswordEntity>(partitionKey, rowKey);
+                var retrieve = TableOperation.Retrieve<PwnedPasswordEntity>(append.PartitionKey, append.RowKey);
                 var result = await _table.ExecuteAsync(retrieve);
 
                 searchSw.Stop();
@@ -140,11 +146,11 @@ namespace Functions
                 var lastModifiedSw = Stopwatch.StartNew();
 
                 // Check if the key exists to save on transaction costs
-                var retrieveModified = TableOperation.Retrieve<PwnedPasswordEntity>("LastModified", partitionKey);
+                var retrieveModified = TableOperation.Retrieve<PwnedPasswordEntity>("LastModified", append.PartitionKey);
                 var modifiedResult = await _metadataTable.ExecuteAsync(retrieveModified);
                 if (modifiedResult.Result == null)
                 {
-                    var updateModified = TableOperation.InsertOrReplace(new TableEntity("LastModified", partitionKey));
+                    var updateModified = TableOperation.InsertOrReplace(new TableEntity("LastModified", append.PartitionKey));
                     result = await _metadataTable.ExecuteAsync(updateModified);
                 }
 
