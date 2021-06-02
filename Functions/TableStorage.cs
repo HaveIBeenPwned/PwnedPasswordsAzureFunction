@@ -1,4 +1,6 @@
 ﻿using Microsoft.Azure.WebJobs.Host;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
@@ -18,20 +20,20 @@ namespace Functions
     {
         private readonly CloudTable _table;
         private readonly CloudTable _metadataTable;
-        private readonly TraceWriter _log;
+        private readonly ILogger _log;
 
         private static HashSet<string> _localCache = new HashSet<string>();
 
-        public TableStorage(TraceWriter log)
+        public TableStorage(IConfiguration configuration, ILogger log)
         {
             _log = log;
             ServicePointManager.UseNagleAlgorithm = false;
             ServicePointManager.Expect100Continue = false;
             ServicePointManager.DefaultConnectionLimit = 100;
 
-            var storageConnectionString = ConfigurationManager.AppSettings["PwnedPasswordsConnectionString"];
-            var tableName = ConfigurationManager.AppSettings["TableStorageName"];
-            var metadataTableName = ConfigurationManager.AppSettings["MetadataTableStorageName"];
+            var storageConnectionString = configuration["PwnedPasswordsConnectionString"];
+            var tableName = configuration["TableStorageName"];
+            var metadataTableName = configuration["MetadataTableStorageName"];
 
             var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
             var tableClient = storageAccount.CreateCloudTableClient();
@@ -58,7 +60,8 @@ namespace Functions
 
             do
             {
-                var response = _table.ExecuteQuerySegmented(query, continuationToken);
+                // TODO: Use await
+                var response = _table.ExecuteQuerySegmentedAsync(query, continuationToken).Result;
 
                 foreach (var entity in response)
                 {
@@ -78,7 +81,7 @@ namespace Functions
 
             if (i == 0)
             {
-                _log.Warning($"Table Storage couldn't find any matching partition keys for \"{hashPrefix}\"");
+                _log.LogWarning($"Table Storage couldn't find any matching partition keys for \"{hashPrefix}\"");
             }
 
             return responseBuilder.ToString();
@@ -100,9 +103,10 @@ namespace Functions
                 // First check that this request isn't in the local cache
                 if (_localCache.Contains(contentID))
                 {
+                    _localCache.Add(contentID);
                     searchSw.Stop();
                     totalSw.Stop();
-                    _log.Info($"Duplicate update request detected by local cache in {searchSw.ElapsedMilliseconds:n0}ms");
+                    _log.LogInformation($"Duplicate update request detected by local cache in {searchSw.ElapsedMilliseconds:n0}ms");
                     return EUpdateHashResult.DuplicateRequest;
                 }
 
@@ -114,7 +118,7 @@ namespace Functions
                 {
                     searchSw.Stop();
                     totalSw.Stop();
-                    _log.Info($"Duplicate update request detected by metadata table in {searchSw.ElapsedMilliseconds:n0}ms");
+                    _log.LogInformation($"Duplicate update request detected by metadata table in {searchSw.ElapsedMilliseconds:n0}ms");
                     return EUpdateHashResult.DuplicateRequest;
                 }
 
@@ -122,7 +126,7 @@ namespace Functions
                 var result = await _table.ExecuteAsync(retrieve);
 
                 searchSw.Stop();
-                _log.Info($"Search for duplicate completed in {searchSw.ElapsedMilliseconds:n0}ms");
+                _log.LogInformation($"Search for duplicate completed in {searchSw.ElapsedMilliseconds:n0}ms");
 
                 var pwnedPassword = result.Result as PwnedPasswordEntity;
 
@@ -141,7 +145,7 @@ namespace Functions
                 }
 
                 insertOrUpdateSw.Stop();
-                _log.Info($"Insert/Update took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
+                _log.LogInformation($"Insert/Update took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
 
                 var lastModifiedSw = Stopwatch.StartNew();
 
@@ -155,22 +159,22 @@ namespace Functions
                 }
 
                 lastModifiedSw.Stop();
-                _log.Info($"LastModified took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
+                _log.LogInformation($"LastModified took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
 
                 var duplicateSw = Stopwatch.StartNew();
                 var insertRequest = TableOperation.Insert(new TableEntity("DuplicateRequest", contentID));
                 await _metadataTable.ExecuteAsync(insertRequest);
                 duplicateSw.Stop();
-                _log.Info($"DuplicateRequest took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
+                _log.LogInformation($"DuplicateRequest took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
 
                 totalSw.Stop();
-                _log.Info($"Total update completed in {totalSw.ElapsedMilliseconds:n0}ms");
+                _log.LogInformation($"Total update completed in {totalSw.ElapsedMilliseconds:n0}ms");
 
                 return (pwnedPassword == null) ? EUpdateHashResult.Added : EUpdateHashResult.Updated;
             }
             catch (Exception e)
             {
-                _log.Error("An error occured", e, "TableStorage");
+                _log.LogError("An error occured", e, "TableStorage");
                 return EUpdateHashResult.Error;
             }
         }
@@ -204,7 +208,7 @@ namespace Functions
             while (continuationToken != null);
 
             sw.Stop();
-            _log.Info($"Identifying {modifiedPartitions.Count} modified partitions since {timeLimit.UtcDateTime} took {sw.ElapsedMilliseconds:n0}ms");
+            _log.LogInformation($"Identifying {modifiedPartitions.Count} modified partitions since {timeLimit.UtcDateTime} took {sw.ElapsedMilliseconds:n0}ms");
 
             return modifiedPartitions.ToArray();
         }
@@ -266,7 +270,7 @@ namespace Functions
             }
 
             sw.Stop();
-            _log.Info($"Cleaning up {deleteCount} modified partitions took {sw.ElapsedMilliseconds:n0}ms");
+            _log.LogInformation($"Cleaning up {deleteCount} modified partitions took {sw.ElapsedMilliseconds:n0}ms");
         }
     }
 

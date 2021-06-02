@@ -1,10 +1,9 @@
-﻿using System;
-using System.Configuration;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
-using Microsoft.Azure.WebJobs.Host;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 
@@ -16,25 +15,26 @@ namespace Functions
     public sealed class BlobStorage
     {
         private readonly CloudBlobContainer _container;
-        private readonly TraceWriter _log;
+        private readonly ILogger _log;
 
         /// <summary>
         /// Create a new Blob storage access instance
         /// </summary>
-        /// <param name="log">Trace writer to use to write to the log</param>
-        public BlobStorage(TraceWriter log)
+        /// <param name="configuration">Configuration instance</param>
+        /// <param name="log">Logger instance to emit diagnostic information to</param>
+        public BlobStorage(IConfiguration configuration, ILogger log)
         {
             _log = log;
             ServicePointManager.UseNagleAlgorithm = false;
             ServicePointManager.Expect100Continue = false;
             ServicePointManager.DefaultConnectionLimit = 100;
 
-            var storageConnectionString = ConfigurationManager.AppSettings["PwnedPasswordsConnectionString"];
-            var containerName = ConfigurationManager.AppSettings["BlobContainerName"];
+            var storageConnectionString = configuration["PwnedPasswordsConnectionString"];
+            var containerName = configuration["BlobContainerName"];
 
             var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
             var blobClient = storageAccount.CreateCloudBlobClient();
-            _log.Info($"Querying container: {containerName}");
+            _log.LogInformation("Querying container: {ContainerName}", containerName);
             _container = blobClient.GetContainerReference(containerName);
         }
 
@@ -42,9 +42,8 @@ namespace Functions
         /// Get a stream to the file using the hash prefix
         /// </summary>
         /// <param name="hashPrefix">The hash prefix to use to lookup the blob storage file</param>
-        /// <param name="lastModified">Pointer to the DateTimeOffset for the last time that the blob was modified</param>
-        /// <returns>Returns a stream to access the k-anonymity SHA-1 file</returns>
-        public Stream GetByHashesByPrefix(string hashPrefix, out DateTimeOffset? lastModified)
+        /// <returns>Returns a <see cref="BlobStorageEntry"/> with a stream to access the k-anonymity SHA-1 file</returns>
+        public async Task<BlobStorageEntry> GetByHashesByPrefix(string hashPrefix)
         {
             var fileName = $"{hashPrefix}.txt";
             var blockBlob = _container.GetBlockBlobReference(fileName);
@@ -53,20 +52,21 @@ namespace Functions
             {
                 var sw = new Stopwatch();
                 sw.Start();
-                var blobStream = blockBlob.OpenRead();
+                var blobStream = await blockBlob.OpenReadAsync();
                 sw.Stop();
-                _log.Info($"Blob Storage stream queried in {sw.ElapsedMilliseconds:n0}ms");
+                _log.LogInformation("Blob Storage stream queried in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));
 
-                lastModified = blockBlob.Properties.LastModified;
-
-                return blobStream;
+                return new BlobStorageEntry
+                {
+                    Stream = blobStream,
+                    LastModified = blockBlob.Properties.LastModified
+                };
             }
             catch (StorageException ex) when (ex.RequestInformation?.HttpStatusCode == 404)
             {
-                _log.Warning($"Blob Storage couldn't find file \"{fileName}\"");
+                _log.LogWarning("Blob Storage couldn't find file \"{FileName}\"", fileName);
             }
 
-            lastModified = null;
             return null;
         }
 

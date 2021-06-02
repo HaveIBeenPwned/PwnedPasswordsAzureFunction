@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -6,6 +6,8 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Azure.WebJobs.Host;
 using Newtonsoft.Json;
 
@@ -14,17 +16,31 @@ namespace Functions
     /// <summary>
     /// Main entry point for Pwned Passwords
     /// </summary>
-    public static class Range
+    public class Range
     {
+        private readonly IConfiguration _configuration;
+
+        /// <summary>
+        /// Pwned Passwords - Range handler
+        /// </summary>
+        /// <param name="configuration">Configuration instance</param>
+        public Range(IConfiguration configuration)
+        {
+            _configuration = configuration;
+        }
+        
         /// <summary>
         /// Handle a request to /range/{hashPrefix}
         /// </summary>
         /// <param name="req">The request message from the client</param>
         /// <param name="hashPrefix">The passed hash prefix</param>
-        /// <param name="log">Trace writer to use to write to the log</param>
+        /// <param name="log">Logger instance to emit diagnostic information to</param>
         /// <returns></returns>
         [FunctionName("Range-GET")]
-        public static HttpResponseMessage RunRoute([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestMessage req, string hashPrefix, TraceWriter log)
+        public Task<HttpResponseMessage> RunAsync(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestMessage req,
+            string hashPrefix,
+            ILogger log)
         {
             return GetData(req, hashPrefix, log);
         }
@@ -34,9 +50,12 @@ namespace Functions
         /// </summary>
         /// <param name="req">The request message from the client</param>
         /// <param name="hashPrefix">The passed hash prefix</param>
-        /// <param name="log">Trace writer to use to write to the log</param>
+        /// <param name="log">Logger instance to emit diagnostic information to</param>
         /// <returns>Http Response message to return to the client</returns>
-        private static HttpResponseMessage GetData(HttpRequestMessage req, string hashPrefix, TraceWriter log)
+        private async Task<HttpResponseMessage> GetData(
+            HttpRequestMessage req,
+            string hashPrefix,
+            ILogger log)
         {
             if (string.IsNullOrEmpty(hashPrefix))
             {
@@ -48,9 +67,14 @@ namespace Functions
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
             }
 
-            var storage = new BlobStorage(log);
-            var stream = storage.GetByHashesByPrefix(hashPrefix.ToUpper(), out var lastModified);
-            var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, null, stream, lastModified);
+            var storage = new BlobStorage(_configuration, log);
+            var entry = await storage.GetByHashesByPrefix(hashPrefix.ToUpper());
+            if (entry == null)
+            {
+                return PwnedResponse.CreateResponse(req, HttpStatusCode.NotFound, "The hash prefix was not found");
+            }
+            
+            var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, null, entry.Stream, entry.LastModified);
             return response;
         }
 
@@ -61,7 +85,10 @@ namespace Functions
         /// <param name="log">Trace writer to use to write to the log</param>
         /// <returns>Response to the requesting client</returns>
         [FunctionName("AppendPwnedPassword")]
-        public static async Task<HttpResponseMessage> AppendData([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "range/append")] HttpRequestMessage req, TraceWriter log)
+        public async Task<HttpResponseMessage> AppendData(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "range/append")]
+            HttpRequestMessage req,
+            ILogger log)
         {
             // Check that the data has been passed as JSON
             if (req.Content.Headers.ContentType.MediaType.ToLower() != "application/json")
@@ -122,9 +149,9 @@ namespace Functions
                 }
 
                 validateSw.Stop();
-                log.Info($"Validated {data.Length} items in {validateSw.ElapsedMilliseconds:n0}ms");
+                log.LogInformation($"Validated {data.Length} items in {validateSw.ElapsedMilliseconds:n0}ms");
 
-                var storage = new TableStorage(log);
+                var storage = new TableStorage(_configuration, log);
 
                 var failedAttempts = new List<PwnedPasswordAppend>();
 
@@ -135,7 +162,7 @@ namespace Functions
                 }
                 else
                 {
-                    log.Warning("Request does not have a CF-Connecting-IP header, using empty string as client identifier");
+                    log.LogWarning("Request does not have a CF-Connecting-IP header, using empty string as client identifier");
                 }
 
                 // Now insert the data
@@ -147,7 +174,7 @@ namespace Functions
                     switch (newEntry)
                     {
                         case EUpdateHashResult.DuplicateRequest:
-                            log.Info("Client made duplicate request");
+                            log.LogInformation("Client made duplicate request");
                             break;
                         case EUpdateHashResult.Error:
                             failedAttempts.Add(data[i]);
@@ -187,7 +214,7 @@ namespace Functions
         /// <param name="timer">Timer information</param>
         /// <param name="log">Logger</param>
         [FunctionName("UpdateStorageBlobs")]
-        public static async Task UpdateStorageBlobs(
+        public async Task UpdateStorageBlobs(
 #if DEBUG
             // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
             // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
@@ -195,12 +222,13 @@ namespace Functions
 #else
             [TimerTrigger("0 0 0 * * *")]
 #endif
-        TimerInfo timer, TraceWriter log)
+            TimerInfo timer,
+            ILogger log)
         {
-            log.Info($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last.ToUniversalTime()}");
+            log.LogInformation($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last.ToUniversalTime()}");
 
-            var blobStorage = new BlobStorage(log);
-            var tableStorage = new TableStorage(log);
+            var blobStorage = new BlobStorage(_configuration, log);
+            var tableStorage = new TableStorage(_configuration, log);
 
             var sw = Stopwatch.StartNew();
 
@@ -210,7 +238,7 @@ namespace Functions
             if (modifiedPartitions.Length == 0)
             {
                 sw.Stop();
-                log.Info($"Detected no changes needed for Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
+                log.LogInformation($"Detected no changes needed for Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
                 return;
             }
 
@@ -227,21 +255,21 @@ namespace Functions
                 await tableStorage.RemoveModifiedPartitionFromTable(modifiedPartitions[i]);
             }
             updateSw.Stop();
-            log.Info($"Writing to Blob Storage took {sw.ElapsedMilliseconds:n0}ms");
+            log.LogInformation($"Writing to Blob Storage took {sw.ElapsedMilliseconds:n0}ms");
 
             if (modifiedPartitions.Length > 0)
             {
-                var cloudflare = new Cloudflare(log);
+                var cloudflare = new Cloudflare(_configuration, log);
 
                 await cloudflare.PurgeFile(modifiedPartitions);
             }
 
             sw.Stop();
-            log.Info($"Successfully updated Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
+            log.LogInformation($"Successfully updated Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
         }
 
         [FunctionName("ClearIdempotencyCache")]
-        public static async Task ClearIdempotencyCache(
+        public async Task ClearIdempotencyCache(
 #if DEBUG
             // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
             // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
@@ -249,11 +277,12 @@ namespace Functions
 #else
             [TimerTrigger("0 0 */1 * * *")]
 #endif
-        TimerInfo timer, TraceWriter log)
+            TimerInfo timer,
+            ILogger log)
         {
-            var tableStorage = new TableStorage(log);
+            var tableStorage = new TableStorage(_configuration, log);
             await tableStorage.RemoveOldDuplicateRequests();
-            log.Info($"Next cleanup will occur at {timer.ScheduleStatus.Next}");
+            log.LogInformation($"Next cleanup will occur at {timer.ScheduleStatus.Next}");
         }
     }
 }

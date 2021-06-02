@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -19,7 +21,7 @@ namespace Functions
         private const string PWNEDPASSWORDS_URL = "https://api.pwnedpasswords.com";
 
         private static readonly HttpClient _httpClient = new HttpClient();
-        private readonly TraceWriter _log;
+        private readonly ILogger _log;
         private readonly string _email;
         private readonly string _apiKey;
         private readonly string _zoneIdentifier;
@@ -28,12 +30,12 @@ namespace Functions
         /// Create a new instance of the Cloudflare wrapper
         /// </summary>
         /// <param name="log">Log to use</param>
-        public Cloudflare(TraceWriter log)
+        public Cloudflare(IConfiguration configuration, ILogger log)
         {
             _log = log;
-            _email = ConfigurationManager.AppSettings["CloudflareAPIEmail"];
-            _apiKey = ConfigurationManager.AppSettings["CloudflareAPIKey"];
-            _zoneIdentifier = ConfigurationManager.AppSettings["CloudflareZoneIdentifier"];
+            _email = configuration["CloudflareAPIEmail"];
+            _apiKey = configuration["CloudflareAPIKey"];
+            _zoneIdentifier = configuration["CloudflareZoneIdentifier"];
 
             _httpClient.DefaultRequestHeaders.Accept.Clear();
             _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
@@ -51,7 +53,7 @@ namespace Functions
         {
             if (!CanMakeCloudflareRequest())
             {
-                _log.Warning("Unable to make Cloudflare request due to missing configuration values");
+                _log.LogWarning("Unable to make Cloudflare request due to missing configuration values");
                 return false;
             }
 
@@ -76,12 +78,12 @@ namespace Functions
 
             if (success)
             {
-                _log.Info($"Purging {hashPrefixes.Length} files from Cloudflare Cache took {sw.ElapsedMilliseconds:n0}ms");
+                _log.LogInformation($"Purging {hashPrefixes.Length} files from Cloudflare Cache took {sw.ElapsedMilliseconds:n0}ms");
             }
             else
             {
-                _log.Error($"Cloudflare Request failed in {sw.ElapsedMilliseconds:n0}ms");
-                _log.Error(content);
+                _log.LogError($"Cloudflare Request failed in {sw.ElapsedMilliseconds:n0}ms");
+                _log.LogError(content);
             }
 
             return success;
