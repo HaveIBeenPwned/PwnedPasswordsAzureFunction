@@ -17,4 +17,4 @@ If this closes an issue, please include "closes #XXXX" in your comment to auto-c
 - [ ] I have updated the [README](https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/blob/main/README.md) with any changes in dependencies/configuration values.
 - [ ] I have linted my code to ensure that it is formatted correctly.
 
-Thank you for your submission and for contributing to Have I Been Pwned's Pwned Passwords!
+<!-- Thank you for your submission and for contributing to Have I Been Pwned's Pwned Passwords! -->
