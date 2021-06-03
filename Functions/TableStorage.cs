@@ -1,11 +1,9 @@
-﻿using Microsoft.Azure.WebJobs.Host;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
@@ -88,44 +86,65 @@ namespace Functions
         }
 
         /// <summary>
+        /// Check if the contentID is a duplicate request
+        /// </summary>
+        /// <param name="contentID">Hash of the deserialised content and the client's IP address for idempotency</param>
+        /// <returns>True if the request is not a duplicate</returns>
+        public async Task<bool> IsNotDuplicateRequest(string contentID)
+        {
+            var totalSw = Stopwatch.StartNew();
+            var searchSw = Stopwatch.StartNew();
+
+            // First check that this request isn't in the local cache
+            if (_localCache.Contains(contentID))
+            {
+                searchSw.Stop();
+                totalSw.Stop();
+                _log.LogInformation($"Duplicate update request detected by local cache in {searchSw.ElapsedMilliseconds:n0}ms");
+                return false;
+            }
+
+            // Cache miss, check it isn't in the metadata table
+            var retrieveDuplicateRequest = TableOperation.Retrieve<PwnedPasswordEntity>("DuplicateRequest", contentID);
+            var duplicateRequestResult = await _metadataTable.ExecuteAsync(retrieveDuplicateRequest);
+
+            if (duplicateRequestResult.Result != null)
+            {
+                searchSw.Stop();
+                totalSw.Stop();
+                _log.LogInformation($"Duplicate update request detected by metadata table in {searchSw.ElapsedMilliseconds:n0}ms");
+                return false;
+            }
+
+            var duplicateSw = Stopwatch.StartNew();
+            _localCache.Add(contentID);
+            var insertRequest = TableOperation.Insert(new TableEntity("DuplicateRequest", contentID));
+            await _metadataTable.ExecuteAsync(insertRequest);
+            duplicateSw.Stop();
+            _log.LogInformation($"DuplicateRequest took {duplicateSw.ElapsedMilliseconds:n0}ms");
+
+            totalSw.Stop();
+            _log.LogInformation($"Total duplication check completed in {totalSw.ElapsedMilliseconds:n0}ms");
+
+            return true;
+        }
+
+        /// <summary>
         /// Updates the prevalence for the given hash by a specified amount
         /// </summary>
         /// <param name="append">The append request to process</param>
-        /// <param name="contentID">Hash of the deserialised content and the client's IP address for idempotency</param>
-        /// <returns>Returns true if a new entry was added, false if an existing entry was updated, and null if no entries were updated</returns>
-        public async Task<EUpdateHashResult> UpdateHash(PwnedPasswordAppend append, string contentID)
+        public async Task UpdateHash(PwnedPasswordAppend append)
         {
             try
             {
                 var totalSw = Stopwatch.StartNew();
-                var searchSw = Stopwatch.StartNew();
-
-                // First check that this request isn't in the local cache
-                if (_localCache.Contains(contentID))
-                {
-                    searchSw.Stop();
-                    totalSw.Stop();
-                    _log.LogInformation($"Duplicate update request detected by local cache in {searchSw.ElapsedMilliseconds:n0}ms");
-                    return EUpdateHashResult.DuplicateRequest;
-                }
-
-                // Cache miss, check it isn't in the metadata table
-                var retrieveDuplicateRequest = TableOperation.Retrieve<PwnedPasswordEntity>("DuplicateRequest", contentID);
-                var duplicateRequestResult = await _metadataTable.ExecuteAsync(retrieveDuplicateRequest);
-
-                if (duplicateRequestResult.Result != null)
-                {
-                    searchSw.Stop();
-                    totalSw.Stop();
-                    _log.LogInformation($"Duplicate update request detected by metadata table in {searchSw.ElapsedMilliseconds:n0}ms");
-                    return EUpdateHashResult.DuplicateRequest;
-                }
-
+                var retrieveSw = Stopwatch.StartNew();
+                
                 var retrieve = TableOperation.Retrieve<PwnedPasswordEntity>(append.PartitionKey, append.RowKey);
                 var result = await _table.ExecuteAsync(retrieve);
 
-                searchSw.Stop();
-                _log.LogInformation($"Search for duplicate completed in {searchSw.ElapsedMilliseconds:n0}ms");
+                retrieveSw.Stop();
+                _log.LogInformation($"Retrieval of partition key and row key completed in {retrieveSw.ElapsedMilliseconds:n0}ms");
 
                 var pwnedPassword = result.Result as PwnedPasswordEntity;
 
@@ -160,22 +179,13 @@ namespace Functions
                 lastModifiedSw.Stop();
                 _log.LogInformation($"LastModified took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
 
-                _localCache.Add(contentID);
-                var duplicateSw = Stopwatch.StartNew();
-                var insertRequest = TableOperation.Insert(new TableEntity("DuplicateRequest", contentID));
-                await _metadataTable.ExecuteAsync(insertRequest);
-                duplicateSw.Stop();
-                _log.LogInformation($"DuplicateRequest took {insertOrUpdateSw.ElapsedMilliseconds:n0}ms");
-
                 totalSw.Stop();
                 _log.LogInformation($"Total update completed in {totalSw.ElapsedMilliseconds:n0}ms");
-
-                return (pwnedPassword == null) ? EUpdateHashResult.Added : EUpdateHashResult.Updated;
             }
             catch (Exception e)
             {
                 _log.LogError("An error occured", e, "TableStorage");
-                return EUpdateHashResult.Error;
+                throw;
             }
         }
 
@@ -272,13 +282,5 @@ namespace Functions
             sw.Stop();
             _log.LogInformation($"Cleaning up {deleteCount} modified partitions took {sw.ElapsedMilliseconds:n0}ms");
         }
-    }
-
-    public enum EUpdateHashResult : int
-    {
-        Added = 0,
-        Updated = 1,
-        DuplicateRequest = 2,
-        Error = 4,
     }
 }

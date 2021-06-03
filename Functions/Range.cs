@@ -8,8 +8,10 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Azure.WebJobs.Host;
 using Newtonsoft.Json;
+using Microsoft.Azure.Storage.Queue;
+using System.Text;
+using System;
 
 namespace Functions
 {
@@ -19,6 +21,8 @@ namespace Functions
     public class Range
     {
         private readonly IConfiguration _configuration;
+
+        private static int QueueCount = 0;
 
         /// <summary>
         /// Pwned Passwords - Range handler
@@ -165,35 +169,38 @@ namespace Functions
                     log.LogWarning("Request does not have a CF-Connecting-IP header, using empty string as client identifier");
                 }
 
+                var queue = new StorageQueue(_configuration, log);
+
+                var queueSw = Stopwatch.StartNew();
+
                 // Now insert the data
                 for (int i = 0; i < data.Length; i++)
                 {
                     var contentID = $"{originIP}|{data[i]}".CreateSHA1Hash();
-                    var newEntry = await storage.UpdateHash(data[i], contentID);
-
-                    switch (newEntry)
+                    
+                    if (!await storage.IsNotDuplicateRequest(contentID))
                     {
-                        case EUpdateHashResult.DuplicateRequest:
-                            log.LogInformation("Client made duplicate request");
-                            break;
-                        case EUpdateHashResult.Error:
-                            failedAttempts.Add(data[i]);
-                            break;
+                        continue;
                     }
+
+                    await queue.PushPassword(data[i]);
                 }
+
+                queueSw.Stop();
+                log.LogInformation("Added {items} items in {ElapsedMilliseconds}ms", data.Length, queueSw.ElapsedMilliseconds.ToString("n0"));
 
                 if (failedAttempts.Count > 0)
                 {
                     // We have some failed attempts, that means that some items were unable to be added, internal server error
-                    var errorMessage = "Unable to add following entries to Pwned Passwords:\n";
+                    StringBuilder errorMessage = new StringBuilder("Unable to add following entries to Pwned Passwords:\n");
                     foreach (var failedAttempt in failedAttempts)
                     {
-                        errorMessage += $"{JsonConvert.SerializeObject(failedAttempt, Formatting.None)}\n";
+                        errorMessage.Append($"{JsonConvert.SerializeObject(failedAttempt, Formatting.None)}\n");
                     }
-                    return PwnedResponse.CreateResponse(req, HttpStatusCode.InternalServerError, errorMessage);
+                    return PwnedResponse.CreateResponse(req, HttpStatusCode.InternalServerError, errorMessage.ToString());
                 }
 
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.OK, "");
+                return PwnedResponse.CreateResponse(req, HttpStatusCode.OK, queueSw.ElapsedMilliseconds.ToString("n0") + "\n");
             }
             catch (JsonReaderException)
             {
@@ -206,6 +213,8 @@ namespace Functions
                 return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Unable to parse JSON");
             }
         }
+
+        #region Timer Functions
 
         /// <summary>
         /// Updates the contents of the Azure Storage Blobs from the Azure Storage Table data.
@@ -283,6 +292,23 @@ namespace Functions
             var tableStorage = new TableStorage(_configuration, log);
             await tableStorage.RemoveOldDuplicateRequests();
             log.LogInformation($"Next cleanup will occur at {timer.ScheduleStatus.Next}");
+        }
+
+        #endregion
+
+        [FunctionName("ProcessAppendQueueItem")]
+        public async Task ProcessQueueItemForAppend(
+            [QueueTrigger("%PasswordIngestQueueName%", Connection = "PwnedPasswordsConnectionString")]
+            CloudQueueMessage item,
+            ILogger log
+            )
+        {
+            var sw = Stopwatch.StartNew();
+            var storage = new TableStorage(_configuration, log);
+            var appendItem = JsonConvert.DeserializeObject<PwnedPasswordAppend>(item.AsString);
+            await storage.UpdateHash(appendItem);
+            sw.Stop();
+            log.LogInformation($"Total update completed in {sw.ElapsedMilliseconds:n0}ms");
         }
     }
 }
