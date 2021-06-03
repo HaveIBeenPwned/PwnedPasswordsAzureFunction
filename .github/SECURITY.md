@@ -16,9 +16,19 @@ Within the report of the issue, please provide the following information:
 
 For sensitive communications, you can use [Keybase](https://keybase.io/troyhunt).
 
+## Communication
+
+GitHub Security Advisory will be used to communicate during the process of identifying, fixing and shipping the mitigation of the vulnerability.
+
+The advisory will only be made public when the patched version is released to inform the community of the breach and its potential security impact.
+
 ## Scope
 
 The following items are **not** in scope:
 - High volume vulnerabilities, such as overwhelming the service with requests, Dos, brute force attacks, etc.
 - Rate limitations or service limitations, unless it allows bypassing of rate-limits, API keys, or other security measures
 - Vulnerabilities from old versions of the project
+
+## Compensation
+
+We do not provide compensation for reporting vulnerabilities, except for eternal gratitude for helping keep Pwned Passwords a secure and reliable service.
