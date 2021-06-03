@@ -18,14 +18,9 @@ namespace Functions
         /// <returns>The input string as a SHA-1 hash</returns>
         public static string CreateSHA1Hash(this string input, string source = "UTF8")
         {
-            if (input == null)
-            {
-                return null;
-            }
-
-            var bytes = source == "UTF8" ? Encoding.UTF8.GetBytes(input) : Encoding.Unicode.GetBytes(input);
-            var hash = SHA1.HashData(bytes);
-            
+            var encoding = source == "UTF8" ? Encoding.UTF8 : Encoding.Unicode;
+            Span<byte> hash = stackalloc byte[20];
+            _ = SHA1.HashData(encoding.GetBytes(input), hash);
             return Convert.ToHexString(hash);
         }
 
@@ -38,7 +33,7 @@ namespace Functions
         
         public static bool IsHexStringOfLength(this string input, int requiredLength)
         {
-            if (string.IsNullOrWhiteSpace(input) || input?.Length != requiredLength)
+            if (input.Length == 0 || input.Length != requiredLength)
             {
                 return false;
             }
