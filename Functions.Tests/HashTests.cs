@@ -2,7 +2,7 @@
 
 using Xunit;
 
-namespace Tests
+namespace Functions.Tests
 {
     public class HashTests
     {
