@@ -35,7 +35,7 @@ namespace Functions
         /// <param name="input">Input hash to check</param>
         /// <returns>Boolean representing if the input is valid or not</returns>
         public static bool IsStringSHA1Hash(this string input) => input.IsHexStringOfLength(40);
-        
+
         public static bool IsHexStringOfLength(this string input, int requiredLength)
         {
             if (string.IsNullOrWhiteSpace(input))

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -23,7 +24,7 @@ namespace Functions.Tests
             var returnHashFile = new BlobStorageEntry(Stream.Null, DateTimeOffset.Parse(lastModified));
 
             var mockStorage = new Mock<IStorageService>();
-            mockStorage.Setup(s => s.GetHashesByPrefix(validHashPrefix)).ReturnsAsync(returnHashFile);
+            mockStorage.Setup(s => s.GetHashesByPrefix(validHashPrefix, CancellationToken.None)).ReturnsAsync(returnHashFile);
 
             var function = new Range(mockStorage.Object, dummyLogger);
 
@@ -59,7 +60,7 @@ namespace Functions.Tests
             var dummyLogger = NullLoggerFactory.Instance.CreateLogger<Range>();
 
             var mockStorage = new Mock<IStorageService>();
-            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>())).ThrowsAsync(new Exception());
+            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new Exception());
 
             var function = new Range(mockStorage.Object, dummyLogger);
 
