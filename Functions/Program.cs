@@ -1,4 +1,5 @@
 ﻿
+using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -10,7 +11,21 @@ namespace Functions
         {
             var host = new HostBuilder()
                 .ConfigureFunctionsWorkerDefaults()
-                .ConfigureServices(services => services.AddSingleton<IStorageService, BlobStorage>())
+                .ConfigureServices((context, services) =>
+                {
+                    var storageConnectionString = context.Configuration["PwnedPasswordsConnectionString"];
+                    var storageContainerName = context.Configuration["BlobContainerName"];
+
+                    services.Configure<BlobStorageOptions>(options => options.BlobContainerName = storageContainerName);
+
+                    services.AddAzureClients(
+                        azure =>
+                        {
+                            azure.AddBlobServiceClient(storageConnectionString);
+                        });
+
+                    services.AddSingleton<IStorageService, BlobStorage>();
+                })
                 .Build();
 
             host.Run();
