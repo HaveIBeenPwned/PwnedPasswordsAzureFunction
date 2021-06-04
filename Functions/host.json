@@ -1,12 +1,20 @@
 {
   "version": "2.0",
-  "http": {
-    "routePrefix": ""
+  "extensions": {
+    "http": {
+      "routePrefix": "",
+      "customHeaders": {
+        "Content-Type":  "text/plain",
+        "Cache-Control": "public; max-age=2678400",
+        "Arr-Disable-Session-Affinity": "True",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
   },
   "logging": {
     "applicationInsights": {
-      "samplingExcludedTypes": "Request",
       "samplingSettings": {
+        "excludedTypes": "Request",
         "isEnabled": true
       }
     }
