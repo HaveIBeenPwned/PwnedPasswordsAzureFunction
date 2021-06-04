@@ -18,6 +18,11 @@ namespace Functions
         /// <returns>The input string as a SHA-1 hash</returns>
         public static string CreateSHA1Hash(this string input, string source = "UTF8")
         {
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return string.Empty;
+            }
+
             var encoding = source == "UTF8" ? Encoding.UTF8 : Encoding.Unicode;
             Span<byte> hash = stackalloc byte[20];
             _ = SHA1.HashData(encoding.GetBytes(input), hash);

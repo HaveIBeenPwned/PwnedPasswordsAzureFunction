@@ -7,6 +7,7 @@ namespace Functions.Tests
     public class HashTests
     {
         [Theory]
+        [InlineData(null, false)]
         [InlineData("", false)]
         [InlineData("123", true)]
         [InlineData("OHNO!", false)]
@@ -18,6 +19,7 @@ namespace Functions.Tests
         }
 
         [Theory]
+        [InlineData(null, "")]
         [InlineData("Passw0rd!", "F4A69973E7B0BF9D160F9F60E3C3ACD2494BEB0D")]
         [InlineData("hunter2", "F3BBBD66A63D4BF1747940578EC3D0103530E21D")]
         public void CreateSHA1Hash(string input, string expected)
@@ -26,6 +28,7 @@ namespace Functions.Tests
         }
 
         [Theory]
+        [InlineData(null, 0, false)]
         [InlineData("", 0, false)]
         [InlineData("01", 2, true)]
         [InlineData("aB", 2, true)]
@@ -45,6 +48,7 @@ namespace Functions.Tests
         [InlineData("G3BBBD66A63D4BF1747940578EC3D0103530E21D", false)]
         [InlineData("F3BBBD66A63D4BF1747940578EC3D0103530E21DAA", false)]
         [InlineData("", false)]
+        [InlineData(null, false)]
         public void IsSHA1Hash(string input, bool expected)
         {
             Assert.Equal(expected, Hash.IsStringSHA1Hash(input));
