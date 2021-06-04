@@ -1,8 +1,10 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using System.Threading.Tasks;
 
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 
 namespace Functions
@@ -12,15 +14,17 @@ namespace Functions
     /// </summary>
     public class Range
     {
-        private readonly BlobStorage _blobStorage;
+        private readonly IStorageService _blobStorage;
+        private readonly ILogger<Range> _log;
 
         /// <summary>
         /// Pwned Passwords - Range handler
         /// </summary>
         /// <param name="blobStorage">The Blob storage</param>
-        public Range(BlobStorage blobStorage)
+        public Range(IStorageService blobStorage, ILogger<Range> log)
         {
             _blobStorage = blobStorage;
+            _log = log;
         }
 
         /// <summary>
@@ -35,14 +39,22 @@ namespace Functions
         {
             if (!hashPrefix.IsHexStringOfLength(5))
             {
-                return InvalidFormat(req);
+                return BadRequest(req);
             }
 
-            var entry = await _blobStorage.GetHashesByPrefix(hashPrefix.ToUpper());
-            return entry == null ? NotFound(req) : File(req, entry);
+            try
+            {
+                var entry = await _blobStorage.GetHashesByPrefix(hashPrefix.ToUpper());
+                return entry == null ? NotFound(req) : File(req, entry);
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Something went wrong.");
+                return InternalServerError(req);
+            }
         }
 
-        private static HttpResponseData InvalidFormat(HttpRequestData req)
+        private static HttpResponseData BadRequest(HttpRequestData req)
         {
             var response = req.CreateResponse(HttpStatusCode.BadRequest);
             response.WriteString("The hash prefix was not in a valid format");
@@ -65,6 +77,13 @@ namespace Functions
             }
 
             response.Body = entry.Stream;
+            return response;
+        }
+
+        private static HttpResponseData InternalServerError(HttpRequestData req)
+        {
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            response.WriteString("Something went wrong.");
             return response;
         }
     }

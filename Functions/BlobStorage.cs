@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -49,17 +50,19 @@ namespace Functions
 
             try
             {
-                var sw = new Stopwatch();
+                var sw = Stopwatch.StartNew();
+
                 sw.Start();
                 var blobStream = await blockBlob.OpenReadAsync();
                 sw.Stop();
-                _log.LogInformation("Blob Storage stream queried in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));
+                
+                _log.LogInformation("Hash file downloaded in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));
 
                 return new BlobStorageEntry(blobStream, blockBlob.Properties.LastModified);
             }
             catch (StorageException ex) when (ex.RequestInformation?.HttpStatusCode == 404)
             {
-                _log.LogWarning("Blob Storage couldn't find file \"{FileName}\"", fileName);
+                _log.LogWarning("Hash file \"{FileName}\" not found.", fileName);
             }
 
             return null;
