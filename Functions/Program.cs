@@ -10,7 +10,7 @@ namespace Functions
         {
             var host = new HostBuilder()
                 .ConfigureFunctionsWorkerDefaults()
-                .ConfigureServices(services => services.AddSingleton<BlobStorage>())
+                .ConfigureServices(services => services.AddSingleton<IStorageService, BlobStorage>())
                 .Build();
 
             host.Run();
