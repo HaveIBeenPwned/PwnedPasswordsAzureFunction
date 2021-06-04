@@ -11,7 +11,7 @@ namespace Functions
     /// <summary>
     /// Blob Storage instance to access hash prefix files
     /// </summary>
-    public class BlobStorage
+    public class BlobStorage : IStorageService
     {
         private readonly CloudBlobContainer _container;
         private readonly ILogger _log;
