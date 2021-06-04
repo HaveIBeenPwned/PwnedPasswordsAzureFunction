@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.Azure.Functions.Worker;
+﻿using Microsoft.Azure.Functions.Worker;
 
 namespace Functions.Tests
 {

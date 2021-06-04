@@ -1,9 +1,9 @@
-﻿using Microsoft.Azure.Functions.Worker;
-using Microsoft.Azure.Functions.Worker.Http;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Security.Claims;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 
 namespace Functions.Tests
 {
