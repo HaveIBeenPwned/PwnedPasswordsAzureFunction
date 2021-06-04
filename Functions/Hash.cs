@@ -33,14 +33,21 @@ namespace Functions
         
         public static bool IsHexStringOfLength(this string input, int requiredLength)
         {
-            if (input.Length == 0 || input.Length != requiredLength)
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return false;
+            }
+
+            var sanitizedInput = input.Trim();
+
+            if (sanitizedInput.Length == 0 || sanitizedInput.Length != requiredLength)
             {
                 return false;
             }
 
             for (int i = 0; i < requiredLength; i++)
             {
-                if (!input[i].IsHex())
+                if (!sanitizedInput[i].IsHex())
                 {
                     return false;
                 }
