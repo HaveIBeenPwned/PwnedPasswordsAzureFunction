@@ -34,7 +34,6 @@ namespace Functions.Tests
 
         [Theory]
         [InlineData("")]
-        [InlineData(null)]
         [InlineData("123456")]
         [InlineData("ABCDG")]
         [InlineData("ghijk")]
