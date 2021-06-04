@@ -21,7 +21,7 @@ namespace Functions
         /// </summary>
         /// <param name="configuration">Configuration instance</param>
         /// <param name="log">Logger instance to emit diagnostic information to</param>
-        public BlobStorage(IConfiguration configuration, ILogger log)
+        public BlobStorage(IConfiguration configuration, ILogger<BlobStorage> log)
         {
             _log = log;
             ServicePointManager.UseNagleAlgorithm = false;
@@ -42,7 +42,7 @@ namespace Functions
         /// </summary>
         /// <param name="hashPrefix">The hash prefix to use to lookup the blob storage file</param>
         /// <returns>Returns a <see cref="BlobStorageEntry"/> with a stream to access the k-anonymity SHA-1 file</returns>
-        public async Task<BlobStorageEntry> GetByHashesByPrefix(string hashPrefix)
+        public async Task<BlobStorageEntry?> GetByHashesByPrefix(string hashPrefix)
         {
             var fileName = $"{hashPrefix}.txt";
             var blockBlob = _container.GetBlockBlobReference(fileName);
@@ -55,11 +55,7 @@ namespace Functions
                 sw.Stop();
                 _log.LogInformation("Blob Storage stream queried in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));
 
-                return new BlobStorageEntry
-                {
-                    Stream = blobStream,
-                    LastModified = blockBlob.Properties.LastModified
-                };
+                return new BlobStorageEntry(blobStream, blockBlob.Properties.LastModified);
             }
             catch (StorageException ex) when (ex.RequestInformation?.HttpStatusCode == 404)
             {
