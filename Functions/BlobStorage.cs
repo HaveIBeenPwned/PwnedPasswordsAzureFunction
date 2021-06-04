@@ -42,7 +42,7 @@ namespace Functions
         /// </summary>
         /// <param name="hashPrefix">The hash prefix to use to lookup the blob storage file</param>
         /// <returns>Returns a <see cref="BlobStorageEntry"/> with a stream to access the k-anonymity SHA-1 file</returns>
-        public async Task<BlobStorageEntry?> GetByHashesByPrefix(string hashPrefix)
+        public async Task<BlobStorageEntry?> GetHashesByPrefix(string hashPrefix)
         {
             var fileName = $"{hashPrefix}.txt";
             var blockBlob = _container.GetBlockBlobReference(fileName);

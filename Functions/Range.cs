@@ -38,7 +38,7 @@ namespace Functions
                 return InvalidFormat(req);
             }
 
-            var entry = await _blobStorage.GetByHashesByPrefix(hashPrefix.ToUpper());
+            var entry = await _blobStorage.GetHashesByPrefix(hashPrefix.ToUpper());
             return entry == null ? NotFound(req) : File(req, entry);
         }
 
