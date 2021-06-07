@@ -12,7 +12,7 @@ namespace Functions
         private ILogger _log;
         private CloudQueue _queue;
 
-        public StorageQueue(IConfiguration configuration, ILogger log)
+        public StorageQueue(IConfiguration configuration, ILogger<StorageQueue> log)
         {
             _log = log;
             ServicePointManager.UseNagleAlgorithm = false;

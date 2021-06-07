@@ -20,9 +20,9 @@ namespace Functions
         private readonly CloudTable _metadataTable;
         private readonly ILogger _log;
 
-        private static HashSet<string> _localCache = new HashSet<string>();
+        private static readonly HashSet<string> _localCache = new HashSet<string>();
 
-        public TableStorage(IConfiguration configuration, ILogger log)
+        public TableStorage(IConfiguration configuration, ILogger<TableStorage> log)
         {
             _log = log;
             ServicePointManager.UseNagleAlgorithm = false;
@@ -53,7 +53,7 @@ namespace Functions
             var partitionFilter = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, hashPrefix);
             var query = new TableQuery<PwnedPasswordEntity>().Where(partitionFilter);
 
-            TableContinuationToken continuationToken = null;
+            TableContinuationToken? continuationToken = null;
             var i = 0;
 
             do
@@ -64,9 +64,9 @@ namespace Functions
                 foreach (var entity in response)
                 {
                     responseBuilder.Append(entity.RowKey);
-                    responseBuilder.Append(":");
+                    responseBuilder.Append(':');
                     responseBuilder.Append(entity.Prevalence);
-                    responseBuilder.Append("\n");
+                    responseBuilder.Append('\n');
                     // Use the last modified timestamp
                     if (entity.Timestamp > lastModified)
                     {
@@ -196,7 +196,7 @@ namespace Functions
         /// <returns>List of partition keys which have been modified</returns>
         public async Task<string[]> GetModifiedPartitions(DateTimeOffset timeLimit)
         {
-            List<string> modifiedPartitions = new List<string>();
+            var modifiedPartitions = new List<string>();
 
             // Using a fixed partition key should speed up the operation
             var filterCondition = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, "LastModified");
@@ -204,7 +204,7 @@ namespace Functions
 
             var sw = Stopwatch.StartNew();
 
-            TableContinuationToken continuationToken = null;
+            TableContinuationToken? continuationToken = null;
 
             do
             {
@@ -249,14 +249,14 @@ namespace Functions
         public async Task RemoveOldDuplicateRequests()
         {
             var now = DateTimeOffset.UtcNow;
-            List<TableEntity> deleteList = new List<TableEntity>();
+            var deleteList = new List<TableEntity>();
 
             var filterCondition = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, "DuplicateRequest");
             var query = new TableQuery<TableEntity>().Where(filterCondition);
 
             var sw = Stopwatch.StartNew();
 
-            TableContinuationToken continuationToken = null;
+            TableContinuationToken? continuationToken = null;
 
             do
             {

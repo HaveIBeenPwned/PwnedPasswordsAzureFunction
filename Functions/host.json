@@ -1,9 +1,17 @@
 {
-    "version": "2.0",
+  "version": "2.0",
+  "extensions": {
     "http": {
-        "routePrefix": "",
+      "routePrefix": "",
         "maxConcurrentRequests": 100
-    },
+      "customHeaders": {
+        "Content-Type":  "text/plain",
+        "Cache-Control": "public; max-age=2678400",
+        "Arr-Disable-Session-Affinity": "True",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  },
     "extensions": {
         "queues": {
             "maxPollingInterval": "00:10:00",
@@ -14,12 +22,11 @@
             "messageEncoding": "none",
         }
     },
-    "logging": {
-        "applicationInsights": {
-            "samplingExcludedTypes": "Request",
-            "samplingSettings": {
-                "isEnabled": true
-            }
-        }
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "excludedTypes": "Request",
+        "isEnabled": true
+      }
     }
 }

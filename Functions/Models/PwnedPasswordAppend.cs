@@ -7,10 +7,10 @@ namespace Functions
     /// </summary>
     public sealed class PwnedPasswordAppend
     {
-        private string _sha1Hash;
+        private string? _sha1Hash;
 
-        private string _partitionKey;
-        private string _rowKey;
+        private string? _partitionKey;
+        private string? _rowKey;
 
         /// <summary>
         /// The SHA-1 hash passed in an append operation
@@ -18,10 +18,7 @@ namespace Functions
         [JsonProperty("sha1Hash")]
         public string SHA1Hash
         {
-            get
-            {
-                return _sha1Hash;
-            }
+            get => _sha1Hash;
             set
             {
                 _sha1Hash = value.ToUpper();
@@ -33,20 +30,14 @@ namespace Functions
         /// <summary>
         /// Gets the partition key for the proposed append operation
         /// </summary>
-        public string PartitionKey
-        {
-            get { return _partitionKey; }
-        }
+        public string PartitionKey => _partitionKey;
 
         /// <summary>
         /// Get the row key for the proposed append operation
         /// </summary>
-        public string RowKey
-        {
-            get { return _rowKey; }
-        }
+        public string RowKey => _rowKey;
 
-        private string _ntlmHash;
+        private string? _ntlmHash;
 
         /// <summary>
         /// The NTLM hash passed in an append operation
@@ -54,10 +45,7 @@ namespace Functions
         [JsonProperty("ntlmHash")]
         public string NTLMHash
         {
-            get
-            {
-                return _ntlmHash;
-            }
+            get => _ntlmHash;
             set
             {
                 _ntlmHash = value.ToUpper();

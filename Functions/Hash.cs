@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -9,10 +10,6 @@ namespace Functions
     /// </summary>
     public static class Hash
     {
-        private static readonly char[] HexChars = new[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-        private static readonly SHA1 Hasher = new SHA1Managed();
-        private static readonly object HashLock = new object();
-
         /// <summary>
         /// Create a SHA-1 hash
         /// </summary>
@@ -21,29 +18,10 @@ namespace Functions
         /// <returns>The input string as a SHA-1 hash</returns>
         public static string CreateSHA1Hash(this string input, string source = "UTF8")
         {
-            if (input == null)
-            {
-                return null;
-            }
-
-            var bytes = source == "UTF8" ? Encoding.UTF8.GetBytes(input) : Encoding.Unicode.GetBytes(input);
-            byte[] hash;
-            
-            // SHA1.ComputeHash is not thread safe, so let's lock. It's still quicker than creating a new instance each time.
-            lock (HashLock)
-            {
-                hash = Hasher.ComputeHash(bytes);
-            }
-
-            var hexChars = new char[hash.Length * 2];
-            int index = 0;
-            for (int i = 0; i < hash.Length; i++)
-            {
-                hexChars[index++] = HexChars[(hash[i] >> 4) & 0b1111];
-                hexChars[index++] = HexChars[(hash[i]) & 0b1111];
-            }
-
-            return new string(hexChars);
+            var encoding = source == "UTF8" ? Encoding.UTF8 : Encoding.Unicode;
+            Span<byte> hash = stackalloc byte[20];
+            _ = SHA1.HashData(encoding.GetBytes(input), hash);
+            return Convert.ToHexString(hash);
         }
 
         /// <summary>
@@ -55,7 +33,7 @@ namespace Functions
         
         public static bool IsHexStringOfLength(this string input, int requiredLength)
         {
-            if (string.IsNullOrWhiteSpace(input) || input?.Length != requiredLength)
+            if (input.Length == 0 || input.Length != requiredLength)
             {
                 return false;
             }

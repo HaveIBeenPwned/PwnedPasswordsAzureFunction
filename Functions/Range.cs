@@ -2,16 +2,17 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Threading.Tasks;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using Microsoft.Azure.Storage.Queue;
 using System.Text;
-using System;
+
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Net.Http.Headers;
+using Microsoft.WindowsAzure.Storage.Queue;
+using System.IO;
+using Microsoft.Azure.WebJobs;
 
 namespace Functions
 {
@@ -20,19 +21,26 @@ namespace Functions
     /// </summary>
     public class Range
     {
-        private readonly IConfiguration _configuration;
+        private readonly BlobStorage _blobStorage;
 
-        private static int QueueCount = 0;
+        private readonly TableStorage _tableStorage;
+
+        private readonly StorageQueue _queue;
+
+        private readonly Cloudflare _cloudflare;
 
         /// <summary>
         /// Pwned Passwords - Range handler
         /// </summary>
-        /// <param name="configuration">Configuration instance</param>
-        public Range(IConfiguration configuration)
+        /// <param name="blobStorage">The Blob storage</param>
+        public Range(BlobStorage blobStorage, TableStorage tableStorage, StorageQueue queue, Cloudflare cloudflare)
         {
-            _configuration = configuration;
+            _blobStorage = blobStorage;
+            _tableStorage = tableStorage;
+            _queue = queue;
+            _cloudflare = cloudflare;
         }
-        
+
         /// <summary>
         /// Handle a request to /range/{hashPrefix}
         /// </summary>
@@ -40,45 +48,55 @@ namespace Functions
         /// <param name="hashPrefix">The passed hash prefix</param>
         /// <param name="log">Logger instance to emit diagnostic information to</param>
         /// <returns></returns>
-        [FunctionName("Range-GET")]
-        public Task<HttpResponseMessage> RunAsync(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestMessage req,
-            string hashPrefix,
-            ILogger log)
+        [Function("Range-GET")]
+        public async Task<HttpResponseData> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestData req, string hashPrefix)
         {
-            return GetData(req, hashPrefix, log);
-        }
-
-        /// <summary>
-        /// Get the data for the request
-        /// </summary>
-        /// <param name="req">The request message from the client</param>
-        /// <param name="hashPrefix">The passed hash prefix</param>
-        /// <param name="log">Logger instance to emit diagnostic information to</param>
-        /// <returns>Http Response message to return to the client</returns>
-        private async Task<HttpResponseMessage> GetData(
-            HttpRequestMessage req,
-            string hashPrefix,
-            ILogger log)
-        {
-            if (string.IsNullOrEmpty(hashPrefix))
-            {
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing hash prefix");
-            }
-
             if (!hashPrefix.IsHexStringOfLength(5))
             {
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The hash prefix was not in a valid format");
+                return InvalidFormat("The hash prefix was not in a valid format", req);
             }
 
-            var storage = new BlobStorage(_configuration, log);
-            var entry = await storage.GetByHashesByPrefix(hashPrefix.ToUpper());
-            if (entry == null)
+            var entry = await _blobStorage.GetByHashesByPrefix(hashPrefix.ToUpper());
+            return entry == null ? NotFound(req) : File(req, entry);
+        }
+
+        private static HttpResponseData InvalidFormat(string error, HttpRequestData req)
+        {
+            var response = req.CreateResponse(HttpStatusCode.BadRequest);
+            response.WriteString(error);
+            return response;
+        }
+
+        private static HttpResponseData NotFound(HttpRequestData req)
+        {
+            var response = req.CreateResponse(HttpStatusCode.NotFound);
+            response.WriteString("The hash prefix was not found");
+            return response;
+        }
+
+        private static HttpResponseData File(HttpRequestData req, BlobStorageEntry entry)
+        {
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            if (entry.LastModified.HasValue)
             {
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.NotFound, "The hash prefix was not found");
+                response.Headers.Add(HeaderNames.LastModified, entry.LastModified.Value.ToString("R"));
             }
-            
-            var response = PwnedResponse.CreateResponse(req, HttpStatusCode.OK, null, entry.Stream, entry.LastModified);
+
+            response.Body = entry.Stream;
+            return response;
+        }
+
+        private static HttpResponseData Ok(string contents, HttpRequestData req)
+        {
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            response.WriteString(contents);
+            return response;
+        }
+
+        private static HttpResponseData ServerError(string contents, HttpRequestData req)
+        {
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            response.WriteString(contents);
             return response;
         }
 
@@ -88,17 +106,17 @@ namespace Functions
         /// <param name="req">The request message from the client</param>
         /// <param name="log">Trace writer to use to write to the log</param>
         /// <returns>Response to the requesting client</returns>
-        [FunctionName("AppendPwnedPassword")]
-        public async Task<HttpResponseMessage> AppendData(
+        [Function("AppendPwnedPassword")]
+        public async Task<HttpResponseData> AppendData(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "range/append")]
-            HttpRequestMessage req,
+            HttpRequestData req,
             ILogger log)
         {
             // Check that the data has been passed as JSON
-            if (req.Content.Headers.ContentType.MediaType.ToLower() != "application/json")
+            if (req.Headers.TryGetValues(HeaderNames.ContentType, out var contentType) && contentType.First().ToLower() != "application/json")
             {
                 // Incorrect Content-Type, bad request
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Content-Type must be application/json");
+                return InvalidFormat("Content-Type must be application/json", req);
             }
 
             try
@@ -106,13 +124,15 @@ namespace Functions
                 var validateSw = Stopwatch.StartNew();
 
                 // Get JSON POST request body
-                PwnedPasswordAppend[] data = await req.Content.ReadAsAsync<PwnedPasswordAppend[]>();
+                var stream = new StreamReader(req.Body);
+                string content = await stream.ReadToEndAsync();
+                PwnedPasswordAppend[] data = JsonConvert.DeserializeObject<PwnedPasswordAppend[]>(content);
 
                 // First validate the data
                 if (data == null)
                 {
                     // Json wasn't parsed from POST body, bad request
-                    return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing JSON body");
+                    return InvalidFormat("Missing JSON body", req);
                 }
                 
                 for (int i = 0; i < data.Length; i++)
@@ -120,56 +140,52 @@ namespace Functions
                     if (data[i] == null)
                     {
                         // Null item in the array, bad request
-                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Null PwnedPassword append entity at " + i);
+                        return InvalidFormat("Null PwnedPassword append entity at " + i, req);
                     }
 
                     if (string.IsNullOrEmpty(data[i].SHA1Hash))
                     {
                         // Empty SHA-1 hash, bad request
-                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing SHA-1 hash for item at index " + i);
+                        return InvalidFormat("Missing SHA-1 hash for item at index " + i, req);
                     }
                     if (!data[i].SHA1Hash.IsStringSHA1Hash())
                     {
                         // Invalid SHA-1 hash, bad request
-                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The SHA-1 hash was not in a valid format for item at index " + i);
+                        return InvalidFormat("The SHA-1 hash was not in a valid format for item at index " + i, req);
                     }
 
                     if (string.IsNullOrEmpty(data[i].NTLMHash))
                     {
                         // Empty NTLM hash, bad request
-                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing NTLM hash for item at index " + (i + 1));
+                        return InvalidFormat("Missing NTLM hash for item at index " + i, req);
                     }
                     if (!data[i].NTLMHash.IsStringNTLMHash())
                     {
                         // Invalid NTLM hash, bad request
-                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "The NTLM hash was not in a valid format for item at index " + i);
+                        return InvalidFormat("The NTLM has was not in a valid format at index " + i, req);
                     }
 
                     if (data[i].Prevalence <= 0)
                     {
                         // Prevalence not set or invalid value, bad request
-                        return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Missing or invalid prevalence value for item at index " + i);
+                        return InvalidFormat("Missing or invalid prevalence value for item at index " + i, req);
                     }
                 }
 
                 validateSw.Stop();
                 log.LogInformation($"Validated {data.Length} items in {validateSw.ElapsedMilliseconds:n0}ms");
 
-                var storage = new TableStorage(_configuration, log);
-
                 var failedAttempts = new List<PwnedPasswordAppend>();
 
                 string originIP = "";
                 if (req.Headers.TryGetValues("CF-Connecting-IP", out var ip))
                 {
-                    originIP = ip.FirstOrDefault();
+                    originIP = ip.First();
                 }
                 else
                 {
                     log.LogWarning("Request does not have a CF-Connecting-IP header, using empty string as client identifier");
                 }
-
-                var queue = new StorageQueue(_configuration, log);
 
                 var queueSw = Stopwatch.StartNew();
 
@@ -178,12 +194,12 @@ namespace Functions
                 {
                     var contentID = $"{originIP}|{data[i]}".CreateSHA1Hash();
                     
-                    if (!await storage.IsNotDuplicateRequest(contentID))
+                    if (!await _tableStorage.IsNotDuplicateRequest(contentID))
                     {
                         continue;
                     }
 
-                    await queue.PushPassword(data[i]);
+                    await _queue.PushPassword(data[i]);
                 }
 
                 queueSw.Stop();
@@ -197,20 +213,22 @@ namespace Functions
                     {
                         errorMessage.Append($"{JsonConvert.SerializeObject(failedAttempt, Formatting.None)}\n");
                     }
-                    return PwnedResponse.CreateResponse(req, HttpStatusCode.InternalServerError, errorMessage.ToString());
+
+                    return ServerError(errorMessage.ToString(), req);
                 }
 
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.OK, queueSw.ElapsedMilliseconds.ToString("n0") + "\n");
+
+                return Ok(queueSw.ElapsedMilliseconds.ToString("n0") + "\n", req);
             }
             catch (JsonReaderException)
             {
                 // Everything can be string, but Prevalence must be an int, so it can cause a JsonReader exception, Bad Request
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Unable to parse JSON");
+                return InvalidFormat("Unable to parse JSON", req);
             }
             catch (JsonSerializationException)
             {
                 // Invalid array passed, Bad Request
-                return PwnedResponse.CreateResponse(req, HttpStatusCode.BadRequest, "Unable to parse JSON");
+                return InvalidFormat("Unable to parse JSON", req);
             }
         }
 
@@ -236,13 +254,10 @@ namespace Functions
         {
             log.LogInformation($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last.ToUniversalTime()}");
 
-            var blobStorage = new BlobStorage(_configuration, log);
-            var tableStorage = new TableStorage(_configuration, log);
-
             var sw = Stopwatch.StartNew();
 
             // Get a list of the partitions which have been modified
-            var modifiedPartitions = await tableStorage.GetModifiedPartitions(timer.ScheduleStatus.Last);
+            var modifiedPartitions = await _tableStorage.GetModifiedPartitions(timer.ScheduleStatus.Last);
 
             if (modifiedPartitions.Length == 0)
             {
@@ -255,22 +270,20 @@ namespace Functions
 
             for (int i = 0; i < modifiedPartitions.Length; i++)
             {
-                var hashPrefixFileContents = tableStorage.GetByHashesByPrefix(modifiedPartitions[i], out _);
+                var hashPrefixFileContents = _tableStorage.GetByHashesByPrefix(modifiedPartitions[i], out _);
 
                 // Write the updated values to the Blob Storage
-                await blobStorage.UpdateBlobFile(modifiedPartitions[i], hashPrefixFileContents);
+                await _blobStorage.UpdateBlobFile(modifiedPartitions[i], hashPrefixFileContents);
 
                 // Now that we've successfully updated the Blob Storage, remove the partition from the table
-                await tableStorage.RemoveModifiedPartitionFromTable(modifiedPartitions[i]);
+                await _tableStorage.RemoveModifiedPartitionFromTable(modifiedPartitions[i]);
             }
             updateSw.Stop();
             log.LogInformation($"Writing to Blob Storage took {sw.ElapsedMilliseconds:n0}ms");
 
             if (modifiedPartitions.Length > 0)
             {
-                var cloudflare = new Cloudflare(_configuration, log);
-
-                await cloudflare.PurgeFile(modifiedPartitions);
+                await _cloudflare.PurgeFile(modifiedPartitions);
             }
 
             sw.Stop();
@@ -289,8 +302,7 @@ namespace Functions
             TimerInfo timer,
             ILogger log)
         {
-            var tableStorage = new TableStorage(_configuration, log);
-            await tableStorage.RemoveOldDuplicateRequests();
+            await _tableStorage.RemoveOldDuplicateRequests();
             log.LogInformation($"Next cleanup will occur at {timer.ScheduleStatus.Next}");
         }
 
@@ -304,9 +316,8 @@ namespace Functions
             )
         {
             var sw = Stopwatch.StartNew();
-            var storage = new TableStorage(_configuration, log);
             var appendItem = JsonConvert.DeserializeObject<PwnedPasswordAppend>(item.AsString);
-            await storage.UpdateHash(appendItem);
+            await _tableStorage.UpdateHash(appendItem);
             sw.Stop();
             log.LogInformation($"Total update completed in {sw.ElapsedMilliseconds:n0}ms");
         }

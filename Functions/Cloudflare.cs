@@ -1,6 +1,7 @@
 ﻿using System.Configuration;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Configuration;
@@ -30,7 +31,7 @@ namespace Functions
         /// Create a new instance of the Cloudflare wrapper
         /// </summary>
         /// <param name="log">Log to use</param>
-        public Cloudflare(IConfiguration configuration, ILogger log)
+        public Cloudflare(IConfiguration configuration, ILogger<Cloudflare> log)
         {
             _log = log;
             _email = configuration["CloudflareAPIEmail"];

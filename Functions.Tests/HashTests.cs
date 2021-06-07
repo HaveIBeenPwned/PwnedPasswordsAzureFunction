@@ -6,7 +6,6 @@ namespace Tests
     public class HashTests
     {
         [Theory]
-        [InlineData(null, false)]
         [InlineData("", false)]
         [InlineData("123", true)]
         [InlineData("OHNO!", false)]
@@ -26,7 +25,6 @@ namespace Tests
         }
 
         [Theory]
-        [InlineData(null, 0, false)]
         [InlineData("", 0, false)]
         [InlineData("01", 2, true)]
         [InlineData("aB", 2, true)]
@@ -47,7 +45,6 @@ namespace Tests
         [InlineData("F3BBBD66A63D4BF1747940578EC3D0103530E21DAA", false)]
         [InlineData("31D6CFE0D16AE931B73C59D7E0C089C0", false)]
         [InlineData("", false)]
-        [InlineData(null, false)]
         public void IsSHA1Hash(string input, bool expected)
         {
             Assert.Equal(expected, input.IsStringSHA1Hash());
