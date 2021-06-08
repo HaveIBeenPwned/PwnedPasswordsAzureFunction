@@ -1,0 +1,16 @@
+name: 'Publish Test Results'
+on:
+  workflow_run:
+    workflows: ['Continuous Integration Build']                     # runs after .NET workflow
+    types:
+      - completed
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: dorny/test-reporter@v1
+      with:
+        artifact: test-results            # artifact name
+        name: dotnet test results         # Name of the check run which will be created
+        path: '*.trx'                     # Path to test results (inside artifact .zip)
+        reporter: dotnet-trx              # Format of test results
