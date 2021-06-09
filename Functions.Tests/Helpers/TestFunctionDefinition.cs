@@ -13,6 +13,11 @@ namespace Functions.Tests
         public static readonly string DefaultId = "TestId";
         public static readonly string DefaultName = "TestName";
 
+        private static readonly Dictionary<string, object> _properties = new()
+        {
+            { "TestPropertyKey", "TestPropertyValue" }
+        };
+
         public TestFunctionDefinition(string functionId = null, IDictionary<string, BindingMetadata> inputBindings = null, IDictionary<string, BindingMetadata> outputBindings = null, IEnumerable<FunctionParameter> parameters = null)
         {
             if (functionId is not null)
@@ -67,19 +72,10 @@ namespace Functions.Tests
 
             for (int i = 0; i < paramTypes.Length; i++)
             {
-                var properties = new Dictionary<string, object>
-                {
-                    {"TestPropertyKey", "TestPropertyValue" }
-                };
-
-                parameters.Add(new FunctionParameter($"Parameter{i}", paramTypes[i], properties.ToImmutableDictionary()));
+                parameters.Add(new FunctionParameter($"Parameter{i}", paramTypes[i], _properties.ToImmutableDictionary()));
             }
 
             return new TestFunctionDefinition(inputBindings: inputs, outputBindings: outputs, parameters: parameters);
-        }
-
-        private void DefaultEntryPoint()
-        {
         }
     }
 }

@@ -19,11 +19,6 @@ namespace Functions.Tests
             FunctionDefinition = functionDefinition;
             _invocation = invocation;
 
-            //Features.Set<IFunctionBindingsFeature>(new TestFunctionBindingsFeature
-            //{
-            //    OutputBindingsInfo = new DefaultOutputBindingsInfoProvider().GetBindingsInfo(FunctionDefinition)
-            //});
-
             BindingContext = new TestBindingContext(this);
         }
 
