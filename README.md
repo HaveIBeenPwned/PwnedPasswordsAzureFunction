@@ -13,12 +13,16 @@
   <a href="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/pulls?q=is%3Apr+is%3Aclosed" alt="Closed PRs">
     <img src="https://img.shields.io/github/issues-pr-closed/HaveIBeenPwned/PwnedPasswordsAzureFunction?style=flat-square" /></a>
   <a href="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/network/members/" alt="Forks">
-		<img src="https://img.shields.io/github/forks/HaveIBeenPwned/PwnedPasswordsAzureFunction?style=flat-square" /></a>
+    <img src="https://img.shields.io/github/forks/HaveIBeenPwned/PwnedPasswordsAzureFunction?style=flat-square" /></a>
   <a href="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/stargazers/" alt="Stars">
-		<img src="https://img.shields.io/github/stars/HaveIBeenPwned/PwnedPasswordsAzureFunction?style=flat-square" /></a>
+    <img src="https://img.shields.io/github/stars/HaveIBeenPwned/PwnedPasswordsAzureFunction?style=flat-square" /></a>
   <a href="CODE_OF_CONDUCT.md" alt="Stars">
-	<img src="https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg?style=flat-square" /></a>
-  
+    <img src="https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg?style=flat-square" /></a>
+  <br />
+  <a href="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/actions/workflows/ci-build.yml">
+    <img src="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/actions/workflows/ci-build.yml/badge.svg" alt="Continuous Integration Build" /></a>
+  <a href="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/actions/workflows/publish-test-results.yml">
+    <img src="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/actions/workflows/publish-test-results.yml/badge.svg" alt="Publish Test Results" /></a>
   </p>
   <p align="center">
     APIs for the k-anonymity Pwned Passwords implementation
