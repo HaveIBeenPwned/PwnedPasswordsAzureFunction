@@ -1,6 +1,4 @@
-﻿using Functions;
-
-using Xunit;
+﻿using Xunit;
 
 namespace Functions.Tests
 {
