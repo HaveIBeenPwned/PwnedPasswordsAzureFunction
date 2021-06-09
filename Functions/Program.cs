@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿using System.Net;
-=======
-﻿
->>>>>>> c8c1116e80027fb902246815debb78cc67670e38
+﻿﻿using System.Net;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
