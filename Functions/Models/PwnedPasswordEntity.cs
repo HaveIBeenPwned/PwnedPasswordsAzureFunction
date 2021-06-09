@@ -1,12 +1,34 @@
-﻿using Microsoft.Azure.Cosmos.Table;
+﻿using System;
+using Azure;
+using Azure.Data.Tables;
 
 namespace Functions
 {
     /// <summary>
     /// Azure Table Storage entity for a Pwned Password
     /// </summary>
-    public class PwnedPasswordEntity : TableEntity
+    public class PwnedPasswordEntity : ITableEntity
     {
+        /// <summary>
+        /// The Partition Key for this entity
+        /// </summary>
+        public string PartitionKey { get; set; }
+
+        /// <summary>
+        /// The Row Key for this entity
+        /// </summary>
+        public string RowKey { get; set; }
+
+        /// <summary>
+        /// Last time this entity was updated
+        /// </summary>
+        public DateTimeOffset? Timestamp { get; set; }
+
+        /// <summary>
+        /// ETag for this entity
+        /// </summary>
+        public ETag ETag { get; set; }
+
         /// <summary>
         /// The NTLM hash to store in the table
         /// </summary>
@@ -22,6 +44,8 @@ namespace Functions
         /// </summary>
         public PwnedPasswordEntity ()
         {
+            PartitionKey = "";
+            RowKey = "";
             NTLMHash = "";
         }
 

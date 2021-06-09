@@ -1,13 +1,11 @@
 ﻿using System.Diagnostics;
 using System.IO;
-using System.Net;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Specialized;
-using Microsoft.Azure.Storage.Blob;
 
 namespace Functions
 {
@@ -81,9 +79,8 @@ namespace Functions
                     await writer.WriteAsync(hashPrefixFileContents);
                     await writer.FlushAsync();
                     memStream.Seek(0, SeekOrigin.Begin);
+                    await blobClient.UploadAsync(memStream, overwrite: true);
                 }
-
-                await blobClient.UploadAsync(memStream);
             }
         }
     }

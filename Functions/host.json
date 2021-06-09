@@ -26,6 +26,14 @@
                 "excludedTypes": "Request",
                 "isEnabled": true
             }
+        },
+        "logLevel": {
+            "default": "Warning",
+            "Host.Functions.AppendPwnedPassword": "Trace",
+            "Host.Functions.Range-GET": "Information",
+            "Host.Functions.ProcessAppendQueueItem": "Warning",
+            "Host.Functions.UpdateStorageBlobs": "Warning",
+            "Host.Functions.ClearIdempotencyCache": "Warning"
         }
     }
 }

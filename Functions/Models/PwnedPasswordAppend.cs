@@ -7,10 +7,10 @@ namespace Functions
     /// </summary>
     public sealed class PwnedPasswordAppend
     {
-        private string? _sha1Hash;
+        private string _sha1Hash = "";
 
-        private string? _partitionKey;
-        private string? _rowKey;
+        private string _partitionKey = "";
+        private string _rowKey = "";
 
         /// <summary>
         /// The SHA-1 hash passed in an append operation
@@ -23,7 +23,7 @@ namespace Functions
             {
                 _sha1Hash = value.ToUpper();
                 _partitionKey = _sha1Hash.Substring(0, 5);
-                _rowKey = _sha1Hash.Substring(5);
+                _rowKey = _sha1Hash[5..];
             }
         }
 
@@ -37,7 +37,7 @@ namespace Functions
         /// </summary>
         public string RowKey => _rowKey;
 
-        private string? _ntlmHash;
+        private string _ntlmHash = "";
 
         /// <summary>
         /// The NTLM hash passed in an append operation

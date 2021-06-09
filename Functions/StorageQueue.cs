@@ -1,6 +1,6 @@
 ﻿using System.Net;
 using System.Threading.Tasks;
-using Microsoft.Azure.Storage.Queue;
+using Azure.Storage.Queues;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -10,7 +10,7 @@ namespace Functions
     public class StorageQueue
     {
         private ILogger _log;
-        private CloudQueue _queue;
+        private QueueClient _queueClient;
 
         public StorageQueue(IConfiguration configuration, ILogger<StorageQueue> log)
         {
@@ -22,9 +22,10 @@ namespace Functions
             var storageConnectionString = configuration["PwnedPasswordsConnectionString"];
             var ingestQueueName = configuration["PasswordIngestQueueName"];
 
-            var storageAccount = Microsoft.Azure.Storage.CloudStorageAccount.Parse(storageConnectionString);
-            var queueClient = storageAccount.CreateCloudQueueClient();
-            _queue = queueClient.GetQueueReference(ingestQueueName);
+            _queueClient = new QueueClient(storageConnectionString, ingestQueueName, new QueueClientOptions
+            {
+                MessageEncoding = QueueMessageEncoding.Base64
+            });
         }
 
         /// <summary>
@@ -34,8 +35,7 @@ namespace Functions
         public async Task PushPassword(PwnedPasswordAppend append)
         {
             var json = JsonConvert.SerializeObject(append);
-            CloudQueueMessage message = new CloudQueueMessage(json);
-            await _queue.AddMessageAsync(message);
+            await _queueClient.SendMessageAsync(json);
         }
     }
 }

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -11,8 +11,6 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Net.Http.Headers;
 using System.IO;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.Storage.Queue;
 
 namespace Functions
 {
@@ -49,7 +47,10 @@ namespace Functions
         /// <param name="log">Logger instance to emit diagnostic information to</param>
         /// <returns></returns>
         [Function("Range-GET")]
-        public async Task<HttpResponseData> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestData req, string hashPrefix)
+        public async Task<HttpResponseData> RunAsync(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")]
+            HttpRequestData req,
+            string hashPrefix)
         {
             if (!hashPrefix.IsHexStringOfLength(5))
             {
@@ -110,8 +111,9 @@ namespace Functions
         public async Task<HttpResponseData> AppendData(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "range/append")]
             HttpRequestData req,
-            ILogger log)
+            FunctionContext context)
         {
+            var log = context.GetLogger("AppendPwnedPassword");
             // Check that the data has been passed as JSON
             if (req.Headers.TryGetValues(HeaderNames.ContentType, out var contentType) && contentType.First().ToLower() != "application/json")
             {
@@ -240,18 +242,13 @@ namespace Functions
         /// </summary>
         /// <param name="timer">Timer information</param>
         /// <param name="log">Logger</param>
-        [FunctionName("UpdateStorageBlobs")]
+        //[Function("UpdateStorageBlobs")]
         public async Task UpdateStorageBlobs(
-#if DEBUG
-            // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
-            // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
-            [TimerTrigger("0 0 0 * * *", RunOnStartup = true)]
-#else
             [TimerTrigger("0 0 0 * * *")]
-#endif
             TimerInfo timer,
-            ILogger log)
+            FunctionContext context)
         {
+            var log = context.GetLogger("UpdateStorageBlobs");
             log.LogInformation($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last.ToUniversalTime()}");
 
             var sw = Stopwatch.StartNew();
@@ -290,34 +287,29 @@ namespace Functions
             log.LogInformation($"Successfully updated Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
         }
 
-        [FunctionName("ClearIdempotencyCache")]
+        //[Function("ClearIdempotencyCache")]
         public async Task ClearIdempotencyCache(
-#if DEBUG
-            // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
-            // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
-            [TimerTrigger("0 0 */1 * * *", RunOnStartup = true)]
-#else
             [TimerTrigger("0 0 */1 * * *")]
-#endif
             TimerInfo timer,
-            ILogger log)
+            FunctionContext context)
         {
+            var log = context.GetLogger("ClearIdempotencyCache");
             await _tableStorage.RemoveOldDuplicateRequests();
             log.LogInformation($"Next cleanup will occur at {timer.ScheduleStatus.Next}");
         }
 
         #endregion
 
-        [FunctionName("ProcessAppendQueueItem")]
+        [Function("ProcessAppendQueueItem")]
         public async Task ProcessQueueItemForAppend(
             [QueueTrigger("%PasswordIngestQueueName%", Connection = "PwnedPasswordsConnectionString")]
-            CloudQueueMessage item,
-            ILogger log
+            PwnedPasswordAppend item,
+            FunctionContext context
             )
         {
+            var log = context.GetLogger("ProcessAppendQueueItem");
             var sw = Stopwatch.StartNew();
-            var appendItem = JsonConvert.DeserializeObject<PwnedPasswordAppend>(item.AsString);
-            await _tableStorage.UpdateHash(appendItem);
+            await _tableStorage.UpdateHash(item);
             sw.Stop();
             log.LogInformation($"Total update completed in {sw.ElapsedMilliseconds:n0}ms");
         }

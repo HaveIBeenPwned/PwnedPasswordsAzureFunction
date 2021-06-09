@@ -1,9 +1,7 @@
-﻿using System.Configuration;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -21,7 +19,7 @@ namespace Functions
 
         private const string PWNEDPASSWORDS_URL = "https://api.pwnedpasswords.com";
 
-        private static readonly HttpClient _httpClient = new HttpClient();
+        private static readonly HttpClient _httpClient = new();
         private readonly ILogger _log;
         private readonly string _email;
         private readonly string _apiKey;
