@@ -58,7 +58,6 @@ namespace Tests
         [InlineData("31D6CFE0D16AE931B73C59D7E0C089C", false)]
         [InlineData("F4A69973E7B0BF9D160F9F60E3C3ACD2494BEB0D", false)]
         [InlineData("", false)]
-        [InlineData(null, false)]
         public void IsNTLMHash(string input, bool expected)
         {
             Assert.Equal(expected, input.IsStringNTLMHash());
