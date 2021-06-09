@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿using System.Net;
+=======
+﻿
+>>>>>>> c8c1116e80027fb902246815debb78cc67670e38
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,10 +22,17 @@ namespace Functions
                 .ConfigureServices((context, services) =>
                 {
                     var storageConnectionString = context.Configuration["PwnedPasswordsConnectionString"];
+                    var storageContainerName = context.Configuration["BlobContainerName"];
 
-                    services.AddAzureClients(azure => azure.AddBlobServiceClient(storageConnectionString));
+                    services.Configure<BlobStorageOptions>(options => options.BlobContainerName = storageContainerName);
 
-                    services.AddSingleton<BlobStorage>();
+                    services.AddAzureClients(
+                        azure =>
+                        {
+                            azure.AddBlobServiceClient(storageConnectionString);
+                        });
+
+                    services.AddSingleton<IStorageService, BlobStorage>();
                 })
                 .Build();
 
