@@ -19,11 +19,7 @@ namespace Functions
                 {
                     var storageConnectionString = context.Configuration["PwnedPasswordsConnectionString"];
 
-                    services.AddAzureClients(
-                        azure =>
-                        {
-                            azure.AddBlobServiceClient(storageConnectionString);
-                        });
+                    services.AddAzureClients(azure => azure.AddBlobServiceClient(storageConnectionString));
 
                     services.AddSingleton<BlobStorage>();
                 })
