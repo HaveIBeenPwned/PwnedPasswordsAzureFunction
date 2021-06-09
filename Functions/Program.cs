@@ -22,11 +22,7 @@ namespace Functions
 
                     services.Configure<BlobStorageOptions>(options => options.BlobContainerName = storageContainerName);
 
-                    services.AddAzureClients(
-                        azure =>
-                        {
-                            azure.AddBlobServiceClient(storageConnectionString);
-                        });
+                    services.AddAzureClients(azure => azure.AddBlobServiceClient(storageConnectionString));
 
                     services.AddSingleton<IStorageService, BlobStorage>();
                 })
