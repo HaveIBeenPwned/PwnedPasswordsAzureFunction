@@ -128,7 +128,7 @@ namespace Functions
                 // Get JSON POST request body
                 var stream = new StreamReader(req.Body);
                 string content = await stream.ReadToEndAsync();
-                PwnedPasswordAppend[] data = JsonConvert.DeserializeObject<PwnedPasswordAppend[]>(content);
+                PwnedPasswordAppend[]? data = JsonConvert.DeserializeObject<PwnedPasswordAppend[]>(content);
 
                 // First validate the data
                 if (data == null)
@@ -244,11 +244,23 @@ namespace Functions
         /// <param name="log">Logger</param>
         //[Function("UpdateStorageBlobs")]
         public async Task UpdateStorageBlobs(
+#if DEBUG
+            // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
+            // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
+            [TimerTrigger("0 0 0 * * *", RunOnStartup = true)]
+#else
             [TimerTrigger("0 0 0 * * *")]
+#endif
             TimerInfo timer,
             FunctionContext context)
         {
             var log = context.GetLogger("UpdateStorageBlobs");
+            if (timer.ScheduleStatus == null)
+            {
+                log.LogWarning("ScheduleStatus is null - this is required");
+                return;
+            }
+
             log.LogInformation($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last.ToUniversalTime()}");
 
             var sw = Stopwatch.StartNew();
@@ -289,16 +301,25 @@ namespace Functions
 
         //[Function("ClearIdempotencyCache")]
         public async Task ClearIdempotencyCache(
+#if DEBUG
+            // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
+            // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
+            [TimerTrigger("0 0 */1 * * *", RunOnStartup = true)]
+#else
             [TimerTrigger("0 0 */1 * * *")]
+#endif
             TimerInfo timer,
             FunctionContext context)
         {
             var log = context.GetLogger("ClearIdempotencyCache");
             await _tableStorage.RemoveOldDuplicateRequests();
-            log.LogInformation($"Next cleanup will occur at {timer.ScheduleStatus.Next}");
+            if (timer.ScheduleStatus != null)
+            {
+                log.LogInformation($"Next cleanup will occur at {timer.ScheduleStatus.Next}");
+            }
         }
 
-        #endregion
+#endregion
 
         [Function("ProcessAppendQueueItem")]
         public async Task ProcessQueueItemForAppend(
