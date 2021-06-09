@@ -1,4 +1,4 @@
-﻿using Microsoft.WindowsAzure.Storage.Table;
+﻿using Microsoft.Azure.Cosmos.Table;
 
 namespace Functions
 {
@@ -20,7 +20,10 @@ namespace Functions
         /// <summary>
         /// Empty constructor - required by TableEntity
         /// </summary>
-        public PwnedPasswordEntity () { }
+        public PwnedPasswordEntity ()
+        {
+            NTLMHash = "";
+        }
 
         /// <summary>
         /// Creates a new PwnedPassword entity row from a <see cref="PwnedPasswordAppend"/>

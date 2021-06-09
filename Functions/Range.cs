@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
@@ -10,9 +10,9 @@ using System.Text;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Net.Http.Headers;
-using Microsoft.WindowsAzure.Storage.Queue;
 using System.IO;
 using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.Storage.Queue;
 
 namespace Functions
 {

@@ -1,7 +1,6 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Azure.Cosmos.Table;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Table;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
