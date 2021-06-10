@@ -45,7 +45,7 @@ namespace Functions
         public async Task<BlobStorageEntry?> GetHashesByPrefix(string hashPrefix, CancellationToken cancellationToken = default)
         {
             var fileName = $"{hashPrefix}.txt";
-			var blobClient = _blobContainerClient.GetBlobClient(fileName);
+            var blobClient = _blobContainerClient.GetBlobClient(fileName);
 
             try
             {
