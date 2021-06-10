@@ -59,11 +59,7 @@ namespace Functions
         private static HttpResponseData File(HttpRequestData req, BlobStorageEntry entry)
         {
             var response = req.CreateResponse(HttpStatusCode.OK);
-            if (entry.LastModified.HasValue)
-            {
-                response.Headers.Add(HeaderNames.LastModified, entry.LastModified.Value.ToString("R"));
-            }
-
+            response.Headers.Add(HeaderNames.LastModified, entry.LastModified.ToString("R"));
             response.Body = entry.Stream;
             return response;
         }
