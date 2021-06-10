@@ -28,12 +28,12 @@ namespace Functions
         }
 
         /// <summary>
-        /// Gets the partition key for the proposed append operation
+        /// Gets the partition key for the proposed append operation. This is the hash prefix for the K-anonyminity model
         /// </summary>
         public string PartitionKey => _partitionKey;
 
         /// <summary>
-        /// Get the row key for the proposed append operation
+        /// Get the row key for the proposed append operation. This is the remainder of the SHA-1 hash when combined with the <see cref="PartitionKey"/>
         /// </summary>
         public string RowKey => _rowKey;
 

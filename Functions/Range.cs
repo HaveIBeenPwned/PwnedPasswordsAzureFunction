@@ -242,7 +242,7 @@ namespace Functions
         /// </summary>
         /// <param name="timer">Timer information</param>
         /// <param name="log">Logger</param>
-        //[Function("UpdateStorageBlobs")]
+        //[Function("UpdateCloudflareCache")]
         public async Task UpdateStorageBlobs(
 #if DEBUG
             // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
@@ -254,7 +254,7 @@ namespace Functions
             TimerInfo timer,
             FunctionContext context)
         {
-            var log = context.GetLogger("UpdateStorageBlobs");
+            var log = context.GetLogger("UpdateCloudflareCache");
             if (timer.ScheduleStatus == null)
             {
                 log.LogWarning("ScheduleStatus is null - this is required");
@@ -271,7 +271,7 @@ namespace Functions
             if (modifiedPartitions.Length == 0)
             {
                 sw.Stop();
-                log.LogInformation($"Detected no changes needed for Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
+                log.LogInformation($"Detected no purges needed for Cloudflare cache in {sw.ElapsedMilliseconds:n0}ms");
                 return;
             }
 
@@ -279,16 +279,11 @@ namespace Functions
 
             for (int i = 0; i < modifiedPartitions.Length; i++)
             {
-                var hashPrefixFileContents = _tableStorage.GetByHashesByPrefix(modifiedPartitions[i], out _);
-
-                // Write the updated values to the Blob Storage
-                await _blobStorage.UpdateBlobFile(modifiedPartitions[i], hashPrefixFileContents);
-
                 // Now that we've successfully updated the Blob Storage, remove the partition from the table
                 await _tableStorage.RemoveModifiedPartitionFromTable(modifiedPartitions[i]);
             }
             updateSw.Stop();
-            log.LogInformation($"Writing to Blob Storage took {sw.ElapsedMilliseconds:n0}ms");
+            log.LogInformation($"Removing existing modified partitions from Table Storage took {sw.ElapsedMilliseconds:n0}ms");
 
             if (modifiedPartitions.Length > 0)
             {
@@ -296,7 +291,7 @@ namespace Functions
             }
 
             sw.Stop();
-            log.LogInformation($"Successfully updated Blob Storage in {sw.ElapsedMilliseconds:n0}ms");
+            log.LogInformation($"Successfully updated Cloudflare Cache in {sw.ElapsedMilliseconds:n0}ms");
         }
 
         //[Function("ClearIdempotencyCache")]
@@ -319,7 +314,7 @@ namespace Functions
             }
         }
 
-#endregion
+        #endregion
 
         [Function("ProcessAppendQueueItem")]
         public async Task ProcessQueueItemForAppend(
@@ -331,6 +326,12 @@ namespace Functions
             var log = context.GetLogger("ProcessAppendQueueItem");
             var sw = Stopwatch.StartNew();
             await _tableStorage.UpdateHash(item);
+
+            var hashPrefixFileContents = _tableStorage.GetByHashesByPrefix(item.PartitionKey, out _);
+
+            // Write the updated values to the Blob Storage
+            await _blobStorage.UpdateBlobFile(item.PartitionKey, hashPrefixFileContents);
+
             sw.Stop();
             log.LogInformation($"Total update completed in {sw.ElapsedMilliseconds:n0}ms");
         }

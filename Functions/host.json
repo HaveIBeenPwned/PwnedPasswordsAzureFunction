@@ -32,7 +32,7 @@
             "Host.Functions.AppendPwnedPassword": "Trace",
             "Host.Functions.Range-GET": "Information",
             "Host.Functions.ProcessAppendQueueItem": "Warning",
-            "Host.Functions.UpdateStorageBlobs": "Warning",
+            "Host.Functions.UpdateCloudflareCache": "Warning",
             "Host.Functions.ClearIdempotencyCache": "Warning"
         }
     }
