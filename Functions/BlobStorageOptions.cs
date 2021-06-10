@@ -1,4 +1,6 @@
-﻿namespace Functions
+using Microsoft.Extensions.Options;
+
+namespace Functions
 {
     public class BlobStorageOptions : IOptions<BlobStorageOptions>
     {
