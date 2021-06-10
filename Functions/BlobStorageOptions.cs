@@ -3,6 +3,6 @@
     public class BlobStorageOptions : IOptions<BlobStorageOptions>
     {
         public string BlobContainerName { get; set; }
-        public BlobStorageOptions => this;
+        public BlobStorageOptions Value => this;
     }
 }
