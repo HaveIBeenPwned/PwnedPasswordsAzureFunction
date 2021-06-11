@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+
 using Microsoft.Azure.Functions.Worker;
 
 namespace Functions.Tests
@@ -13,21 +14,25 @@ namespace Functions.Tests
         public static readonly string DefaultId = "TestId";
         public static readonly string DefaultName = "TestName";
 
-        private static readonly Dictionary<string, object> _properties = new()
+        private static readonly Dictionary<string, object> s_properties = new()
         {
             { "TestPropertyKey", "TestPropertyValue" }
         };
 
-        public TestFunctionDefinition(string functionId = null, IDictionary<string, BindingMetadata> inputBindings = null, IDictionary<string, BindingMetadata> outputBindings = null, IEnumerable<FunctionParameter> parameters = null)
+        public TestFunctionDefinition()
         {
-            if (functionId is not null)
-            {
-                Id = functionId;
-            }
+            Id = "";
+            Parameters = ImmutableArray<FunctionParameter>.Empty;
+            InputBindings = ImmutableDictionary<string, BindingMetadata>.Empty;
+            OutputBindings = ImmutableDictionary<string, BindingMetadata>.Empty;
+        }
 
-            Parameters = parameters == null ? ImmutableArray<FunctionParameter>.Empty : parameters.ToImmutableArray();
-            InputBindings = inputBindings == null ? ImmutableDictionary<string, BindingMetadata>.Empty : inputBindings.ToImmutableDictionary();
-            OutputBindings = outputBindings == null ? ImmutableDictionary<string, BindingMetadata>.Empty : outputBindings.ToImmutableDictionary();
+        public TestFunctionDefinition(IDictionary<string, BindingMetadata> inputBindings, IDictionary<string, BindingMetadata> outputBindings, IEnumerable<FunctionParameter> parameters)
+        {
+            Id = "";
+            Parameters = parameters.ToImmutableArray();
+            InputBindings = inputBindings.ToImmutableDictionary();
+            OutputBindings = outputBindings.ToImmutableDictionary();
         }
 
         public override ImmutableArray<FunctionParameter> Parameters { get; }
@@ -72,7 +77,7 @@ namespace Functions.Tests
 
             for (int i = 0; i < paramTypes.Length; i++)
             {
-                parameters.Add(new FunctionParameter($"Parameter{i}", paramTypes[i], _properties.ToImmutableDictionary()));
+                parameters.Add(new FunctionParameter($"Parameter{i}", paramTypes[i], s_properties.ToImmutableDictionary()));
             }
 
             return new TestFunctionDefinition(inputBindings: inputs, outputBindings: outputs, parameters: parameters);

@@ -1,8 +1,11 @@
 ﻿using System.Diagnostics;
 using System.Threading.Tasks;
+
 using Azure;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -26,7 +29,7 @@ namespace Functions
         {
             _log = log;
 
-            var containerName = configuration["BlobContainerName"];
+            string containerName = configuration["BlobContainerName"];
 
             _log.LogInformation("Querying container: {ContainerName}", containerName);
             _blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
@@ -39,15 +42,15 @@ namespace Functions
         /// <returns>Returns a <see cref="BlobStorageEntry"/> with a stream to access the k-anonymity SHA-1 file</returns>
         public async Task<BlobStorageEntry?> GetHashesByPrefix(string hashPrefix)
         {
-            var fileName = $"{hashPrefix}.txt";
-            var blobClient = _blobContainerClient.GetBlobBaseClient(fileName);
+            string fileName = $"{hashPrefix}.txt";
+            BlobBaseClient blobClient = _blobContainerClient.GetBlobBaseClient(fileName);
 
             try
             {
                 var sw = Stopwatch.StartNew();
 
                 sw.Start();
-                var response = await blobClient.DownloadStreamingAsync();
+                Response<BlobDownloadStreamingResult>? response = await blobClient.DownloadStreamingAsync();
                 sw.Stop();
 
                 _log.LogInformation("Hash file downloaded in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));

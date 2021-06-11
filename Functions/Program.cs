@@ -1,5 +1,4 @@
-﻿using System.Net;
-using Microsoft.Extensions.Azure;
+﻿using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -9,11 +8,11 @@ namespace Functions
     {
         public static void Main()
         {
-            var host = new HostBuilder()
+            IHost host = new HostBuilder()
                 .ConfigureFunctionsWorkerDefaults()
                 .ConfigureServices((context, services) =>
                 {
-                    var storageConnectionString = context.Configuration["PwnedPasswordsConnectionString"];
+                    string storageConnectionString = context.Configuration["PwnedPasswordsConnectionString"];
 
                     services
                     .AddSingleton<BlobStorage>()
