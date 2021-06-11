@@ -20,9 +20,9 @@
     <img src="https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg?style=flat-square" /></a>
   <br />
   <a href="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/actions/workflows/ci-build.yml">
-    <img src="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/actions/workflows/ci-build.yml/badge.svg" alt="Continuous Integration Build" /></a>
+    <img src="https://img.shields.io/github/workflow/status/HaveIBeenPwned/PwnedPasswordsAzureFunction/Continuous%20Integration%20Build?label=CI%20Build&style=flat-square" alt="Continuous Integration Build" /></a>
   <a href="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/actions/workflows/publish-test-results.yml">
-    <img src="https://github.com/HaveIBeenPwned/PwnedPasswordsAzureFunction/actions/workflows/publish-test-results.yml/badge.svg" alt="Publish Test Results" /></a>
+    <img src="https://img.shields.io/github/workflow/status/HaveIBeenPwned/PwnedPasswordsAzureFunction/Publish%20Test%20Results?label=Test%20Results&style=flat-square" alt="Publish Test Results" /></a>
   </p>
   <p align="center">
     APIs for the k-anonymity Pwned Passwords implementation

@@ -1,8 +1,13 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Net;
 using System.Threading.Tasks;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.DataContracts;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 
@@ -36,53 +41,89 @@ namespace Functions
         [Function("Range-GET")]
         public async Task<HttpResponseData> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestData req, string hashPrefix)
         {
-            if (!hashPrefix.IsHexStringOfLength(5))
+            TelemetryClient? telemetryClient = req.FunctionContext.InstanceServices.GetService<TelemetryClient>();
+            using (IOperationHolder<RequestTelemetry>? requestTelemetry = telemetryClient?.StartOperation<RequestTelemetry>(req.FunctionContext.FunctionDefinition.Name))
             {
-                return BadRequest(req);
-            }
+                if (requestTelemetry is not null)
+                {
+                    Activity.Current?.SetParentId(req.FunctionContext.TraceContext.TraceParent);
+                    requestTelemetry.Telemetry.Context.Operation.ParentId = Activity.Current?.ParentId;
+                    requestTelemetry.Telemetry.Url = req.Url;
+                    req.FunctionContext.Features.Set(requestTelemetry.Telemetry);
+                }
 
-            try
-            {
-                var entry = await _blobStorage.GetHashesByPrefix(hashPrefix.ToUpper());
-                return entry == null ? NotFound(req) : File(req, entry);
-            }
-            catch (Exception ex)
-            {
-                _log.LogError(ex, "Something went wrong.");
-                return InternalServerError(req);
+                if (!hashPrefix.IsHexStringOfLength(5))
+                {
+                    return BadRequest(req);
+                }
+
+                try
+                {
+                    BlobStorageEntry? entry = await _blobStorage.GetHashesByPrefix(hashPrefix.ToUpper());
+                    return entry == null ? NotFound(req) : File(req, entry);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Something went wrong.");
+                    return InternalServerError(req);
+                }
             }
         }
 
         private static HttpResponseData BadRequest(HttpRequestData req)
         {
-            var response = req.CreateResponse(HttpStatusCode.BadRequest);
+            HttpResponseData response = req.CreateResponse(HttpStatusCode.BadRequest);
             response.WriteString("The hash prefix was not in a valid format");
+            RequestTelemetry? telemetry = req.FunctionContext.Features.Get<RequestTelemetry>();
+            if (telemetry is not null)
+            {
+                telemetry.Success = false;
+                telemetry.ResponseCode = "400";
+            }
+
             return response;
         }
 
         private static HttpResponseData NotFound(HttpRequestData req)
         {
-            var response = req.CreateResponse(HttpStatusCode.NotFound);
+            HttpResponseData response = req.CreateResponse(HttpStatusCode.NotFound);
             response.WriteString("The hash prefix was not found");
+            RequestTelemetry? telemetry = req.FunctionContext.Features.Get<RequestTelemetry>();
+            if (telemetry is not null)
+            {
+                telemetry.Success = false;
+                telemetry.ResponseCode = "404";
+            }
+
             return response;
         }
 
         private static HttpResponseData File(HttpRequestData req, BlobStorageEntry entry)
         {
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            if (entry.LastModified.HasValue)
+            HttpResponseData response = req.CreateResponse(HttpStatusCode.OK);
+            response.Headers.Add(HeaderNames.LastModified, entry.LastModified.ToString("R"));
+            response.Body = entry.Stream;
+            RequestTelemetry? telemetry = req.FunctionContext.Features.Get<RequestTelemetry>();
+            if (telemetry is not null)
             {
-                response.Headers.Add(HeaderNames.LastModified, entry.LastModified.Value.ToString("R"));
+                telemetry.Success = true;
+                telemetry.ResponseCode = "200";
             }
 
-            response.Body = entry.Stream;
             return response;
         }
 
         private static HttpResponseData InternalServerError(HttpRequestData req)
         {
-            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            HttpResponseData response = req.CreateResponse(HttpStatusCode.InternalServerError);
             response.WriteString("Something went wrong.");
+            RequestTelemetry? telemetry = req.FunctionContext.Features.Get<RequestTelemetry>();
+            if (telemetry is not null)
+            {
+                telemetry.Success = false;
+                telemetry.ResponseCode = "500";
+            }
+
             return response;
         }
     }

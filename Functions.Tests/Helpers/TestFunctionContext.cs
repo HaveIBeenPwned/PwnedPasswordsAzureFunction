@@ -1,16 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+
 using Microsoft.Azure.Functions.Worker;
+
+using Moq;
 
 namespace Functions.Tests
 {
     // Copied from: https://github.com/Azure/azure-functions-dotnet-worker/blob/main/test/DotNetWorkerTests/TestFunctionContext.cs
-    internal class TestFunctionContext : FunctionContext, IDisposable
+    internal class TestFunctionContext : FunctionContext
     {
         private readonly FunctionInvocation _invocation;
 
-        public TestFunctionContext()
-            : this(new TestFunctionDefinition(), new TestFunctionInvocation())
+        public TestFunctionContext() : this(new TestFunctionDefinition(), new TestFunctionInvocation())
         {
         }
 
@@ -18,19 +20,16 @@ namespace Functions.Tests
         {
             FunctionDefinition = functionDefinition;
             _invocation = invocation;
-
-            BindingContext = new TestBindingContext(this);
+            BindingContext = new TestBindingContext();
         }
 
-        public bool IsDisposed { get; private set; }
-
-        public override IServiceProvider InstanceServices { get; set; }
+        public override IServiceProvider InstanceServices { get; set; } = Mock.Of<IServiceProvider>();
 
         public override FunctionDefinition FunctionDefinition { get; }
 
-        public override IDictionary<object, object> Items { get; set; }
+        public override IDictionary<object, object> Items { get; set; } = new Dictionary<object, object>();
 
-        public override IInvocationFeatures Features { get; }
+        public override IInvocationFeatures Features { get; } = Mock.Of<IInvocationFeatures>();
 
         public override string InvocationId => _invocation.Id;
 
@@ -39,22 +38,10 @@ namespace Functions.Tests
         public override TraceContext TraceContext => _invocation.TraceContext;
 
         public override BindingContext BindingContext { get; }
-
-        public void Dispose()
-        {
-            IsDisposed = true;
-        }
     }
 
     internal class TestBindingContext : BindingContext
     {
-        private readonly FunctionContext _functionContext;
-
-        public TestBindingContext(FunctionContext functionContext)
-        {
-            _functionContext = functionContext ?? throw new ArgumentNullException(nameof(functionContext));
-        }
-
-        public override IReadOnlyDictionary<string, object?> BindingData => null;
+        public override IReadOnlyDictionary<string, object?> BindingData => new Dictionary<string, object?>();
     }
 }
