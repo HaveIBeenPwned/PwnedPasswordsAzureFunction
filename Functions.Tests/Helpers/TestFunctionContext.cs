@@ -20,7 +20,7 @@ namespace Functions.Tests
         {
             FunctionDefinition = functionDefinition;
             _invocation = invocation;
-            BindingContext = new TestBindingContext(this);
+            BindingContext = new TestBindingContext();
         }
 
         public override IServiceProvider InstanceServices { get; set; } = Mock.Of<IServiceProvider>();
@@ -42,10 +42,6 @@ namespace Functions.Tests
 
     internal class TestBindingContext : BindingContext
     {
-        public TestBindingContext(FunctionContext functionContext)
-        {
-        }
-
         public override IReadOnlyDictionary<string, object?> BindingData => new Dictionary<string, object?>();
     }
 }

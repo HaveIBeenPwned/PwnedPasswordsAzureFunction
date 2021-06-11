@@ -13,9 +13,11 @@ namespace Functions
                 .ConfigureServices((context, services) =>
                 {
                     string storageConnectionString = context.Configuration["PwnedPasswordsConnectionString"];
+                    string appInsightsInstrumentationKey = context.Configuration["APPINSIGHTS_INSTRUMENTATIONKEY"];
 
                     services
-                    .AddSingleton<BlobStorage>()
+                    .AddSingleton<IStorageService, BlobStorage>()
+                    .AddApplicationInsightsTelemetryWorkerService(appInsightsInstrumentationKey)
                     .AddAzureClients(azure => azure.AddBlobServiceClient(storageConnectionString));
                 })
                 .Build();

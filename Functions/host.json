@@ -1,22 +1,35 @@
 {
-  "version": "2.0",
-  "extensions": {
-    "http": {
-      "routePrefix": "",
-      "customHeaders": {
-        "Content-Type":  "text/plain",
-        "Cache-Control": "public; max-age=2678400",
-        "Arr-Disable-Session-Affinity": "True",
-        "Access-Control-Allow-Origin": "*"
-      }
+    "version": "2.0",
+    "extensions": {
+        "http": {
+            "routePrefix": "",
+            "customHeaders": {
+                "Content-Type": "text/plain",
+                "Cache-Control": "public; max-age=2678400",
+                "Arr-Disable-Session-Affinity": "True",
+                "Access-Control-Allow-Origin": "*"
+            }
+        }
+    },
+    "logging": {
+        "fileLoggingMode": "debugOnly",
+        "logLevel": {
+            "Function": "Information",
+            "default": "None"
+        },
+        "applicationInsights": {
+            "enableLiveMetrics": true,
+            "enableDependencyTracking": true,
+            "enablePerformanceCountersCollection": true,
+            "httpAutoCollectionOptions": {
+                "enableHttpTriggerExtendedInfoCollection": true,
+                "enableW3CDistributedTracing": true,
+                "enableResponseHeaderInjection": true
+            },
+            "samplingSettings": {
+                "excludedTypes": "Request,Exception",
+                "isEnabled": true
+            }
+        }
     }
-  },
-  "logging": {
-    "applicationInsights": {
-      "samplingSettings": {
-        "excludedTypes": "Request",
-        "isEnabled": true
-      }
-    }
-  }
 }
