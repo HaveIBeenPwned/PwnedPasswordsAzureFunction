@@ -1,1 +1,24 @@
-*       @troyhunt
+# This is the CODEOWNERS file for Pwned Passwords Azure Functions
+
+# These people are the default owners for anything in the repo.
+# Unless a later match takes precedence, these people will be
+# requested to review PRs
+*                    @troyhunt
+
+# Any C# source files
+*.cs                 @stebet
+
+# Any C# project files
+*.csproj	         @stebet
+
+# Any Solution files
+*sln	             @stebet
+
+# Any markdown files
+*.md                 @stebet
+
+# Any .yml configuration files
+*.yml                @stebet
+
+# Repo Security policy
+/.github/SECURITY.md @troyhunt
