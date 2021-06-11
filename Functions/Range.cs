@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
+
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
@@ -43,7 +44,7 @@ namespace Functions
 
             try
             {
-                var entry = await _blobStorage.GetHashesByPrefix(hashPrefix.ToUpper());
+                BlobStorageEntry? entry = await _blobStorage.GetHashesByPrefix(hashPrefix.ToUpper());
                 return entry == null ? NotFound(req) : File(req, entry);
             }
             catch (Exception ex)
@@ -55,21 +56,21 @@ namespace Functions
 
         private static HttpResponseData BadRequest(HttpRequestData req)
         {
-            var response = req.CreateResponse(HttpStatusCode.BadRequest);
+            HttpResponseData response = req.CreateResponse(HttpStatusCode.BadRequest);
             response.WriteString("The hash prefix was not in a valid format");
             return response;
         }
 
         private static HttpResponseData NotFound(HttpRequestData req)
         {
-            var response = req.CreateResponse(HttpStatusCode.NotFound);
+            HttpResponseData response = req.CreateResponse(HttpStatusCode.NotFound);
             response.WriteString("The hash prefix was not found");
             return response;
         }
 
         private static HttpResponseData File(HttpRequestData req, BlobStorageEntry entry)
         {
-            var response = req.CreateResponse(HttpStatusCode.OK);
+            HttpResponseData response = req.CreateResponse(HttpStatusCode.OK);
             response.Headers.Add(HeaderNames.LastModified, entry.LastModified.ToString("R"));
             response.Body = entry.Stream;
             return response;
@@ -77,7 +78,7 @@ namespace Functions
 
         private static HttpResponseData InternalServerError(HttpRequestData req)
         {
-            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            HttpResponseData response = req.CreateResponse(HttpStatusCode.InternalServerError);
             response.WriteString("Something went wrong.");
             return response;
         }
