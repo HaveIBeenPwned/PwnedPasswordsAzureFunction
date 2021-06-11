@@ -1,18 +1,21 @@
 ﻿using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+
 using Azure;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Functions
 {
     /// <summary>
     /// Blob Storage instance to access hash prefix files
     /// </summary>
-    public sealed class BlobStorage
+    public class BlobStorage : IStorageService
     {
         private readonly ILogger<BlobStorage> _log;
         private readonly BlobContainerClient _blobContainerClient;
@@ -27,7 +30,7 @@ namespace Functions
         {
             _log = log;
 
-            var containerName = configuration["BlobContainerName"];
+            string containerName = configuration["BlobContainerName"];
 
             _log.LogInformation("Querying container: {ContainerName}", containerName);
             _blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
@@ -38,24 +41,26 @@ namespace Functions
         /// </summary>
         /// <param name="hashPrefix">The hash prefix to use to lookup the blob storage file</param>
         /// <returns>Returns a <see cref="BlobStorageEntry"/> with a stream to access the k-anonymity SHA-1 file</returns>
-        public async Task<BlobStorageEntry?> GetByHashesByPrefix(string hashPrefix)
+        public async Task<BlobStorageEntry?> GetHashesByPrefix(string hashPrefix)
         {
-            var fileName = $"{hashPrefix}.txt";
-            var blobClient = _blobContainerClient.GetBlobBaseClient(fileName);
+            string fileName = $"{hashPrefix}.txt";
+            BlobBaseClient blobClient = _blobContainerClient.GetBlobBaseClient(fileName);
 
             try
             {
-                var sw = new Stopwatch();
+                var sw = Stopwatch.StartNew();
+
                 sw.Start();
-                var response = await blobClient.DownloadStreamingAsync();
+                Response<BlobDownloadStreamingResult>? response = await blobClient.DownloadStreamingAsync();
                 sw.Stop();
-                _log.LogInformation("Blob Storage stream queried in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));
+
+                _log.LogInformation("Hash file downloaded in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));
 
                 return new BlobStorageEntry(response.Value.Content, response.Value.Details.LastModified);
             }
             catch (RequestFailedException ex) when (ex.Status == 404)
             {
-                _log.LogWarning("Blob Storage couldn't find file \"{FileName}\"", fileName);
+                _log.LogWarning("Hash file \"{FileName}\" not found.", fileName);
             }
 
             return null;
