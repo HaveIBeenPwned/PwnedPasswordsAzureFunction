@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 using FluentAssertions;
@@ -26,7 +27,7 @@ namespace Functions.Tests
             var request = new TestHttpRequestData(new TestFunctionContext());
             var returnHashFile = new BlobStorageEntry(Stream.Null, DateTimeOffset.UtcNow);
             var mockStorage = new Mock<IStorageService>();
-            mockStorage.Setup(s => s.GetHashesByPrefix(validHashPrefix)).ReturnsAsync(returnHashFile);
+            mockStorage.Setup(s => s.GetHashesByPrefix(validHashPrefix, CancellationToken.None)).ReturnsAsync(returnHashFile);
 
             var function = new Range(mockStorage.Object, s_nullLogger);
             HttpResponseData actualResponse = await function.RunAsync(request, validHashPrefix);
@@ -39,7 +40,7 @@ namespace Functions.Tests
         {
             var request = new TestHttpRequestData(new TestFunctionContext());
             var mockStorage = new Mock<IStorageService>();
-            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>())).ReturnsAsync(default(BlobStorageEntry));
+            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>(), CancellationToken.None)).ReturnsAsync(default(BlobStorageEntry));
 
             var function = new Range(mockStorage.Object, s_nullLogger);
             HttpResponseData actualResponse = await function.RunAsync(request, "ABCDE");
@@ -69,7 +70,7 @@ namespace Functions.Tests
             string validHashPrefix = "ABCDE";
             var request = new TestHttpRequestData(new TestFunctionContext());
             var mockStorage = new Mock<IStorageService>();
-            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>())).ThrowsAsync(new Exception());
+            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new Exception());
 
             var function = new Range(mockStorage.Object, s_nullLogger);
             HttpResponseData actualResponse = await function.RunAsync(request, validHashPrefix);

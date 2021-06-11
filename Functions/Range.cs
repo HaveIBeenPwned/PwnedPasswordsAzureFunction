@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Net;
 using System.Threading.Tasks;
-
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
