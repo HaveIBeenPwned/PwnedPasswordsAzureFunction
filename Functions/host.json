@@ -16,15 +16,15 @@
             "visibilityTimeout": "00:00:00",
             "batchSize": 32,
             "maxDequeueCount": 5,
-            "messageEncoding": "none"
             "newBatchThreshold": 16,
+            "messageEncoding": "none"
         }
     },
     "logging": {
         "fileLoggingMode": "debugOnly",
         "logLevel": {
             "Function": "Information",
-            "default": "None"
+            "default": "None",
             "Host.Functions.AppendPwnedPassword": "Trace",
             "Host.Functions.Range-GET": "Information",
             "Host.Functions.ProcessAppendQueueItem": "Warning",
