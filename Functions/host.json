@@ -16,24 +16,34 @@
             "visibilityTimeout": "00:00:00",
             "batchSize": 32,
             "maxDequeueCount": 5,
-            "newBatchThreshold": 16,
             "messageEncoding": "none"
+            "newBatchThreshold": 16,
         }
     },
     "logging": {
-        "applicationInsights": {
-            "samplingSettings": {
-                "excludedTypes": "Request",
-                "isEnabled": true
-            }
-        },
+        "fileLoggingMode": "debugOnly",
         "logLevel": {
-            "default": "Warning",
+            "Function": "Information",
+            "default": "None"
             "Host.Functions.AppendPwnedPassword": "Trace",
             "Host.Functions.Range-GET": "Information",
             "Host.Functions.ProcessAppendQueueItem": "Warning",
             "Host.Functions.UpdateCloudflareCache": "Warning",
             "Host.Functions.ClearIdempotencyCache": "Warning"
+        },
+        "applicationInsights": {
+            "enableLiveMetrics": true,
+            "enableDependencyTracking": true,
+            "enablePerformanceCountersCollection": true,
+            "httpAutoCollectionOptions": {
+                "enableW3CDistributedTracing": true,
+                "enableHttpTriggerExtendedInfoCollection": true,
+                "enableResponseHeaderInjection": true
+            },
+            "samplingSettings": {
+                "excludedTypes": "Request,Exception",
+                "isEnabled": true
+            }
         }
     }
 }

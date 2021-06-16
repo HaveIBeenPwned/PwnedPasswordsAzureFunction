@@ -1,14 +1,12 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
-
 using Azure;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using Azure.Storage.Blobs.Specialized;
-
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Functions
 {
@@ -17,23 +15,27 @@ namespace Functions
     /// </summary>
     public class BlobStorage : IStorageService
     {
-        private readonly ILogger<BlobStorage> _log;
         private readonly BlobContainerClient _blobContainerClient;
+        private readonly BlobStorageOptions storageOptions;
+        private readonly ILogger _log;
 
         /// <summary>
         /// Create a new Blob storage access instance
         /// </summary>
-        /// <param name="configuration">Configuration instance</param>
-        /// <param name="log">Logger instance to emit diagnostic information</param>
         /// <param name="blobServiceClient">Client instance for accessing blob storage</param>
-        public BlobStorage(IConfiguration configuration, ILogger<BlobStorage> log, BlobServiceClient blobServiceClient)
+        /// <param name="options">Configuration instance</param>
+        /// <param name="log">Logger instance to emit diagnostic information to</param>
+        public BlobStorage(BlobServiceClient blobServiceClient, IOptions<BlobStorageOptions> options, ILogger<BlobStorage> log)
         {
+            ServicePointManager.UseNagleAlgorithm = false;
+            ServicePointManager.Expect100Continue = false;
+            ServicePointManager.DefaultConnectionLimit = 100;
+
+            storageOptions = options.Value;
+
             _log = log;
-
-            string containerName = configuration["BlobContainerName"];
-
-            _log.LogInformation("Querying container: {ContainerName}", containerName);
-            _blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            _log.LogInformation("Querying container: {ContainerName}", storageOptions.BlobContainerName);
+            _blobContainerClient = blobServiceClient.GetBlobContainerClient(storageOptions.BlobContainerName);
         }
 
         /// <summary>
@@ -41,17 +43,17 @@ namespace Functions
         /// </summary>
         /// <param name="hashPrefix">The hash prefix to use to lookup the blob storage file</param>
         /// <returns>Returns a <see cref="BlobStorageEntry"/> with a stream to access the k-anonymity SHA-1 file</returns>
-        public async Task<BlobStorageEntry?> GetHashesByPrefix(string hashPrefix)
+        public async Task<BlobStorageEntry?> GetHashesByPrefix(string hashPrefix, CancellationToken cancellationToken = default)
         {
-            string fileName = $"{hashPrefix}.txt";
-            BlobBaseClient blobClient = _blobContainerClient.GetBlobBaseClient(fileName);
+            var fileName = $"{hashPrefix}.txt";
+            var blobClient = _blobContainerClient.GetBlobClient(fileName);
 
             try
             {
                 var sw = Stopwatch.StartNew();
 
                 sw.Start();
-                Response<BlobDownloadStreamingResult>? response = await blobClient.DownloadStreamingAsync();
+                var response = await blobClient.DownloadAsync(cancellationToken: cancellationToken);
                 sw.Stop();
 
                 _log.LogInformation("Hash file downloaded in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));
