@@ -20,6 +20,9 @@ using IHost host = new HostBuilder()
         services
             .Configure<BlobStorageOptions>(options => options.BlobContainerName = storageContainerName)
             .AddSingleton<IStorageService, BlobStorage>()
+            .AddSingleton<TableStorage>()
+            .AddSingleton<StorageQueue>()
+            .AddSingleton<Cloudflare>()
             .AddApplicationInsightsTelemetryWorkerService(appInsightsInstrumentationKey)
             .AddAzureClients(azure => azure.AddBlobServiceClient(storageConnectionString));
     })

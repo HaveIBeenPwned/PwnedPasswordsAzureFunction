@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -62,6 +63,29 @@ namespace Functions
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Updates the blob file with the hash prefix wih the provided file contents
+        /// </summary>
+        /// <param name="hashPrefix">Hash prefix file to update</param>
+        /// <param name="hashPrefixFileContents">Contents to write to the file</param>
+        public async Task UpdateBlobFile(string hashPrefix, string hashPrefixFileContents)
+        {
+            var fileName = $"{hashPrefix}.txt";
+
+            var blobClient = _blobContainerClient.GetBlobClient(fileName);
+
+            using (MemoryStream memStream = new MemoryStream())
+            {
+                using (StreamWriter writer = new StreamWriter(memStream))
+                {
+                    await writer.WriteAsync(hashPrefixFileContents);
+                    await writer.FlushAsync();
+                    memStream.Seek(0, SeekOrigin.Begin);
+                    await blobClient.UploadAsync(memStream, overwrite: true);
+                }
+            }
         }
     }
 }

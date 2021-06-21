@@ -49,6 +49,13 @@ namespace Functions
             return true;
         }
 
+        /// <summary>
+        /// Check that the string is a valid NTLM hash with regex
+        /// </summary>
+        /// <param name="input">Input hash to check</param>
+        /// <returns>Boolean representing if the input is valid or not</returns>
+        public static bool IsStringNTLMHash(this string input) => input.IsHexStringOfLength(32);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsHex(this char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
     }

@@ -3,27 +3,41 @@
     "extensions": {
         "http": {
             "routePrefix": "",
+            "maxConcurrentRequests": 100,
             "customHeaders": {
                 "Content-Type": "text/plain",
                 "Cache-Control": "public; max-age=2678400",
                 "Arr-Disable-Session-Affinity": "True",
                 "Access-Control-Allow-Origin": "*"
             }
+        },
+        "queues": {
+            "maxPollingInterval": "00:10:00",
+            "visibilityTimeout": "00:00:00",
+            "batchSize": 32,
+            "maxDequeueCount": 5,
+            "newBatchThreshold": 16,
+            "messageEncoding": "none"
         }
     },
     "logging": {
         "fileLoggingMode": "debugOnly",
         "logLevel": {
             "Function": "Information",
-            "default": "None"
+            "default": "None",
+            "Host.Functions.AppendPwnedPassword": "Trace",
+            "Host.Functions.Range-GET": "Information",
+            "Host.Functions.ProcessAppendQueueItem": "Warning",
+            "Host.Functions.UpdateCloudflareCache": "Warning",
+            "Host.Functions.ClearIdempotencyCache": "Warning"
         },
         "applicationInsights": {
             "enableLiveMetrics": true,
             "enableDependencyTracking": true,
             "enablePerformanceCountersCollection": true,
             "httpAutoCollectionOptions": {
-                "enableHttpTriggerExtendedInfoCollection": true,
                 "enableW3CDistributedTracing": true,
+                "enableHttpTriggerExtendedInfoCollection": true,
                 "enableResponseHeaderInjection": true
             },
             "samplingSettings": {

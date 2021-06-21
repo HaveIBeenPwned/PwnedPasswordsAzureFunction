@@ -72,7 +72,7 @@ An Azure Storage emulator will also be needed for local emulation of Azure Blob 
 
 ### Running Locally
 
-You should configure a `local.settings.json` file to hold the Configuration Manager values for `PwnedPasswordsConnectionString` and `BlobContainerName` within the Functions project. Ensure that this file is **not** commited (it is ignored by Git within the Functions project). 
+You should configure a `local.settings.json` file to hold the Configuration Manager values for `PwnedPasswordsConnectionString`, `BlobContainerName`, `TableStorageName` and `MetadataTableStorageName` within the Functions project. Ensure that this file is **not** commited (it is ignored by Git within the Functions project). 
 
 `local.settings.json` should contain the following correctly configured values:
 
@@ -80,18 +80,25 @@ You should configure a `local.settings.json` file to hold the Configuration Mana
 {
     "IsEncrypted": false,
     "Values": {
+        "AzureWebJobsStorage": "<Your Connection String from Azure Storage Emulator",
         "PwnedPasswordsConnectionString": "<Your Connection String from Azure Storage Emulator>",
-        "BlobContainerName": "<Name of Blob Container You Created>"
+        "BlobContainerName": "<Name of Blob Container you created>",
+        "TableStorageName": "<Name of Table Storage you created",
+        "MetadataTableStorageName": "<Name of second Table Storage you created>"
     }
 }
 ```
 
-Using a utility such as cURL or a web browser will allow you to visit the locally running Azure Functions endpoints, typically at `http://localhost:7071`. 
+Using a utility such as cURL or a web browser will allow you to visit the locally running Azure Functions endpoints, typically at `http://localhost:7071`.
+
+```sh
+curl -X GET http://localhost:7071/range/21BD1
+```
 
 ## To-Do List
 
-- [ ] Authenticated Endpoint which can receive SHA-1/NTLM/prevalence data
-- [ ] Extract SHA-1 into Azure Blob Storage - either appending in order to file or updating count value
+- [x] Authenticated Endpoint which can receive SHA-1/NTLM/prevalence data
+- [x] Extract SHA-1 into Azure Blob Storage - either appending in order to file or updating count value
 - [ ] Add SHA-1/NTLM hashes to downloadable corpus - this should be updated monthly
 - [ ] Corresponding Cloudflare cache item for corpus or blob storage file must be invalidated - this shouldn't be more than once per day for a cache item
 
