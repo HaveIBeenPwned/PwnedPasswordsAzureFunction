@@ -5,6 +5,7 @@ namespace Functions.Tests
     public class HashTests
     {
         [Theory]
+        [InlineData(null, false)]
         [InlineData("", false)]
         [InlineData("123", true)]
         [InlineData("OHNO!", false)]
