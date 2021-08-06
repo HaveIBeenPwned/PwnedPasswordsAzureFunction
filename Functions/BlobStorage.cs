@@ -15,7 +15,6 @@ namespace Functions
     public class BlobStorage : IStorageService
     {
         private readonly BlobContainerClient _blobContainerClient;
-        private readonly BlobStorageOptions storageOptions;
         private readonly ILogger _log;
 
         /// <summary>
@@ -30,7 +29,7 @@ namespace Functions
             ServicePointManager.Expect100Continue = false;
             ServicePointManager.DefaultConnectionLimit = 100;
 
-            storageOptions = options.Value;
+            var storageOptions = options.Value;
 
             _log = log;
             _log.LogInformation("Querying container: {ContainerName}", storageOptions.BlobContainerName);
@@ -50,8 +49,6 @@ namespace Functions
             try
             {
                 var sw = Stopwatch.StartNew();
-
-                sw.Start();
                 var response = await blobClient.DownloadAsync(cancellationToken: cancellationToken);
                 sw.Stop();
 
