@@ -7,7 +7,6 @@ using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 
@@ -41,7 +40,7 @@ namespace Functions
         [Function("Range-GET")]
         public async Task<HttpResponseData> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestData req, string hashPrefix)
         {
-            TelemetryClient? telemetryClient = req.FunctionContext.InstanceServices.GetService<TelemetryClient>();
+            TelemetryClient? telemetryClient = req.GetInstanceService<TelemetryClient>();
             using (IOperationHolder<RequestTelemetry>? requestTelemetry = telemetryClient?.StartOperation<RequestTelemetry>(req.FunctionContext.FunctionDefinition.Name))
             {
                 if (requestTelemetry is not null)
@@ -74,7 +73,7 @@ namespace Functions
         {
             HttpResponseData response = req.CreateResponse(HttpStatusCode.BadRequest);
             response.WriteString("The hash prefix was not in a valid format");
-            RequestTelemetry? telemetry = req.FunctionContext.Features.Get<RequestTelemetry>();
+            RequestTelemetry? telemetry = req.GetFeatureService<RequestTelemetry>();
             if (telemetry is not null)
             {
                 telemetry.Success = false;
@@ -88,7 +87,7 @@ namespace Functions
         {
             HttpResponseData response = req.CreateResponse(HttpStatusCode.NotFound);
             response.WriteString("The hash prefix was not found");
-            RequestTelemetry? telemetry = req.FunctionContext.Features.Get<RequestTelemetry>();
+            RequestTelemetry? telemetry = req.GetFeatureService<RequestTelemetry>();
             if (telemetry is not null)
             {
                 telemetry.Success = false;
@@ -103,7 +102,7 @@ namespace Functions
             HttpResponseData response = req.CreateResponse(HttpStatusCode.OK);
             response.Headers.Add(HeaderNames.LastModified, entry.LastModified.ToString("R"));
             response.Body = entry.Stream;
-            RequestTelemetry? telemetry = req.FunctionContext.Features.Get<RequestTelemetry>();
+            RequestTelemetry? telemetry = req.GetFeatureService<RequestTelemetry>();
             if (telemetry is not null)
             {
                 telemetry.Success = true;
@@ -117,7 +116,7 @@ namespace Functions
         {
             HttpResponseData response = req.CreateResponse(HttpStatusCode.InternalServerError);
             response.WriteString("Something went wrong.");
-            RequestTelemetry? telemetry = req.FunctionContext.Features.Get<RequestTelemetry>();
+            RequestTelemetry? telemetry = req.GetFeatureService<RequestTelemetry>();
             if (telemetry is not null)
             {
                 telemetry.Success = false;
