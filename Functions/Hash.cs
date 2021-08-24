@@ -33,7 +33,7 @@ namespace Functions
 
         public static bool IsHexStringOfLength(this string input, int requiredLength)
         {
-            if (input is null || input.Length == 0 || input.Length != requiredLength)
+            if (input.Length == 0 || input.Length != requiredLength)
             {
                 return false;
             }
