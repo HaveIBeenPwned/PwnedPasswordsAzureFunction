@@ -23,13 +23,10 @@
     "logging": {
         "fileLoggingMode": "debugOnly",
         "logLevel": {
+            "Host.Results": "Information",
             "Function": "Information",
-            "default": "None",
-            "Host.Functions.AppendPwnedPassword": "Trace",
-            "Host.Functions.Range-GET": "Information",
-            "Host.Functions.ProcessAppendQueueItem": "Warning",
-            "Host.Functions.UpdateCloudflareCache": "Warning",
-            "Host.Functions.ClearIdempotencyCache": "Warning"
+            "HaveIBeenPwned": "Information",
+            "default": "None"
         },
         "applicationInsights": {
             "enableLiveMetrics": true,

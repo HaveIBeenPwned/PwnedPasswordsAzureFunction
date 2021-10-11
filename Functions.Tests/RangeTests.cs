@@ -4,9 +4,14 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Azure;
+
 using FluentAssertions;
 
-using Microsoft.Azure.Functions.Worker.Http;
+using HaveIBeenPwned.PwnedPasswords.Models;
+
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -14,38 +19,39 @@ using Moq;
 
 using Xunit;
 
-namespace Functions.Tests
+namespace HaveIBeenPwned.PwnedPasswords.Tests
 {
     public class RangeTests
     {
-        private static readonly ILogger<Range> s_nullLogger = NullLoggerFactory.Instance.CreateLogger<Range>();
+        private static readonly ILogger<Functions.Range> s_nullLogger = NullLoggerFactory.Instance.CreateLogger<Functions.Range>();
 
         [Fact]
         public async Task Returns_ok_given_valid_hashprefix()
         {
             string validHashPrefix = "ABCDE";
-            var request = new TestHttpRequestData(new TestFunctionContext());
-            var returnHashFile = new BlobStorageEntry(Stream.Null, DateTimeOffset.UtcNow);
+            var returnHashFile = new BlobStorageEntry(Stream.Null, DateTimeOffset.UtcNow, ETag.All);
             var mockStorage = new Mock<IStorageService>();
             mockStorage.Setup(s => s.GetHashesByPrefix(validHashPrefix, CancellationToken.None)).ReturnsAsync(returnHashFile);
 
-            var function = new Range(mockStorage.Object, s_nullLogger);
-            HttpResponseData actualResponse = await function.RunAsync(request, validHashPrefix);
+            var function = new Functions.Range(mockStorage.Object, s_nullLogger);
+            var context = new DefaultHttpContext();
+            var actualResponse = await function.RunAsync(context.Request, validHashPrefix);
 
-            actualResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            Assert.IsType<FileStreamResult>(actualResponse);
         }
 
         [Fact]
         public async Task Returns_notfound_if_hashprefix_doesnt_exist()
         {
-            var request = new TestHttpRequestData(new TestFunctionContext());
             var mockStorage = new Mock<IStorageService>();
             mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>(), CancellationToken.None)).ReturnsAsync(default(BlobStorageEntry));
 
-            var function = new Range(mockStorage.Object, s_nullLogger);
-            HttpResponseData actualResponse = await function.RunAsync(request, "ABCDE");
+            var function = new Functions.Range(mockStorage.Object, s_nullLogger);
+            var context = new DefaultHttpContext();
+            var actualResponse = await function.RunAsync(context.Request, "ABCDE");
 
-            actualResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            var result = Assert.IsType<ContentResult>(actualResponse);
+            Assert.Equal(StatusCodes.Status404NotFound, result.StatusCode);
         }
 
         [Theory]
@@ -55,27 +61,29 @@ namespace Functions.Tests
         [InlineData("ghijk")]
         public async Task Returns_bad_request_given_invalid_hashprefix(string invalidHashPrefix)
         {
-            var request = new TestHttpRequestData(new TestFunctionContext());
             var mockStorage = new Mock<IStorageService>();
+            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>(), CancellationToken.None)).ReturnsAsync(default(BlobStorageEntry));
 
-            var function = new Range(mockStorage.Object, s_nullLogger);
-            HttpResponseData actualResponse = await function.RunAsync(request, invalidHashPrefix);
+            var function = new Functions.Range(mockStorage.Object, s_nullLogger);
+            var context = new DefaultHttpContext();
+            var actualResponse = await function.RunAsync(context.Request, invalidHashPrefix);
 
-            actualResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            var result = Assert.IsType<ContentResult>(actualResponse);
+            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
         }
 
         [Fact]
         public async Task Returns_internal_server_error_when_something_goes_wrong()
         {
-            string validHashPrefix = "ABCDE";
-            var request = new TestHttpRequestData(new TestFunctionContext());
             var mockStorage = new Mock<IStorageService>();
             mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new Exception());
 
-            var function = new Range(mockStorage.Object, s_nullLogger);
-            HttpResponseData actualResponse = await function.RunAsync(request, validHashPrefix);
+            var function = new Functions.Range(mockStorage.Object, s_nullLogger);
+            var context = new DefaultHttpContext();
+            var actualResponse = await function.RunAsync(context.Request, "ABCDE");
 
-            actualResponse.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+            var result = Assert.IsType<ContentResult>(actualResponse);
+            Assert.Equal(StatusCodes.Status500InternalServerError, result.StatusCode);
         }
     }
 }

@@ -1,6 +1,9 @@
-﻿using Xunit;
+﻿
+using HaveIBeenPwned.PwnedPasswords.Models;
 
-namespace Functions.Tests
+using Xunit;
+
+namespace HaveIBeenPwned.PwnedPasswords.Tests
 {
     public class PwnedPasswordAppendTests
     {

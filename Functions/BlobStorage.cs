@@ -1,14 +1,21 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Azure;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+
+using HaveIBeenPwned.PwnedPasswords.Models;
+
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Functions
+namespace HaveIBeenPwned.PwnedPasswords
 {
     /// <summary>
     /// Blob Storage instance to access hash prefix files
@@ -26,11 +33,7 @@ namespace Functions
         /// <param name="log">Logger instance to emit diagnostic information to</param>
         public BlobStorage(BlobServiceClient blobServiceClient, IOptions<BlobStorageOptions> options, ILogger<BlobStorage> log)
         {
-            ServicePointManager.UseNagleAlgorithm = false;
-            ServicePointManager.Expect100Continue = false;
-            ServicePointManager.DefaultConnectionLimit = 100;
-
-            var storageOptions = options.Value;
+            BlobStorageOptions? storageOptions = options.Value;
 
             _log = log;
             _log.LogInformation("Querying container: {ContainerName}", storageOptions.BlobContainerName);
@@ -44,18 +47,18 @@ namespace Functions
         /// <returns>Returns a <see cref="BlobStorageEntry"/> with a stream to access the k-anonymity SHA-1 file</returns>
         public async Task<BlobStorageEntry?> GetHashesByPrefix(string hashPrefix, CancellationToken cancellationToken = default)
         {
-            var fileName = $"{hashPrefix}.txt";
-            var blobClient = _blobContainerClient.GetBlobClient(fileName);
+            string fileName = $"{hashPrefix}.txt";
+            BlobClient? blobClient = _blobContainerClient.GetBlobClient(fileName);
 
             try
             {
                 var sw = Stopwatch.StartNew();
-                var response = await blobClient.DownloadAsync(cancellationToken: cancellationToken);
+                Response<Azure.Storage.Blobs.Models.BlobDownloadStreamingResult>? response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
                 sw.Stop();
 
                 _log.LogInformation("Hash file downloaded in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));
 
-                return new BlobStorageEntry(response.Value.Content, response.Value.Details.LastModified);
+                return new BlobStorageEntry(response.Value.Content, response.Value.Details.LastModified, response.Value.Details.ETag);
             }
             catch (RequestFailedException ex) when (ex.Status == 404)
             {
@@ -72,18 +75,55 @@ namespace Functions
         /// <param name="hashPrefixFileContents">Contents to write to the file</param>
         public async Task UpdateBlobFile(string hashPrefix, string hashPrefixFileContents)
         {
-            var fileName = $"{hashPrefix}.txt";
+            string? fileName = $"{hashPrefix}.txt";
 
-            var blobClient = _blobContainerClient.GetBlobClient(fileName);
+            BlobClient? blobClient = _blobContainerClient.GetBlobClient(fileName);
 
-            using (MemoryStream memStream = new MemoryStream())
+            using (MemoryStream memStream = new())
             {
-                using (StreamWriter writer = new StreamWriter(memStream))
+                using (StreamWriter writer = new(memStream))
                 {
                     await writer.WriteAsync(hashPrefixFileContents);
                     await writer.FlushAsync();
                     memStream.Seek(0, SeekOrigin.Begin);
                     await blobClient.UploadAsync(memStream, overwrite: true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates the blob file with the hash prefix wih the provided file contents
+        /// </summary>
+        /// <param name="hashPrefix">Hash prefix file to update</param>
+        /// <param name="hashPrefixFileContents">Contents to write to the file</param>
+        public async Task<bool> UpdateBlobFile(string hashPrefix, SortedDictionary<string, int> hashes, ETag etag)
+        {
+            string? fileName = $"{hashPrefix}.txt";
+            BlobClient? blobClient = _blobContainerClient.GetBlobClient(fileName);
+
+            using (MemoryStream memStream = new())
+            {
+                using (StreamWriter writer = new(memStream))
+                {
+                    foreach(var item in hashes)
+                    {
+                        writer.WriteLine($"{item.Key}:{item.Value:n0}");
+                    }
+
+                    writer.Flush();
+                    memStream.Seek(0, SeekOrigin.Begin);
+                    try
+                    {
+                        await blobClient.UploadAsync(memStream, new BlobUploadOptions() { Conditions = new BlobRequestConditions() { IfMatch = etag } });
+                    }
+                    catch(RequestFailedException ex) when (ex.Status == StatusCodes.Status412PreconditionFailed)
+                    {
+                        // We have a write conflict, let's return false.
+                        _log.LogWarning(ex, $"Unable to update blob {fileName} since ETag does not match.");
+                        return false;
+                    }
+
+                    return true;
                 }
             }
         }

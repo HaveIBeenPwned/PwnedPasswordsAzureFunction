@@ -1,6 +1,7 @@
-﻿using Xunit;
+﻿
+using Xunit;
 
-namespace Functions.Tests
+namespace HaveIBeenPwned.PwnedPasswords.Tests
 {
     public class HashTests
     {

@@ -1,10 +1,12 @@
 ﻿using System;
 using System.IO;
 
-namespace Functions
+using Azure;
+
+namespace HaveIBeenPwned.PwnedPasswords.Models
 {
     /// <summary>
     /// Blob storage entry
     /// </summary>
-    public record BlobStorageEntry(Stream Stream, DateTimeOffset LastModified);
+    public record BlobStorageEntry(Stream Stream, DateTimeOffset LastModified, ETag ETag);
 }

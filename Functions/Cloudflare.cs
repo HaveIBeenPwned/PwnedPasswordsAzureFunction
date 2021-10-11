@@ -1,29 +1,24 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Tasks;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
-namespace Functions
+namespace HaveIBeenPwned.PwnedPasswords
 {
     /// <summary>
     /// Cloudflare instance to perform actions
     /// </summary>
     public sealed class Cloudflare
     {
-        private const string CLOUDFLARE_URL = "https://api.cloudflare.com/client/v4/";
-        private const string PURGE_FILE = CLOUDFLARE_URL + "zones/{0}/purge_cache";
-
-        private const string PWNEDPASSWORDS_URL = "https://api.pwnedpasswords.com";
-
-        private static readonly HttpClient _httpClient = new();
+        private static readonly HttpClient s_httpClient = new();
         private readonly ILogger _log;
-        private readonly string _email;
-        private readonly string _apiKey;
-        private readonly string _zoneIdentifier;
+        private readonly string _pwnedPasswordsUrl;
 
         /// <summary>
         /// Create a new instance of the Cloudflare wrapper
@@ -31,15 +26,30 @@ namespace Functions
         /// <param name="log">Log to use</param>
         public Cloudflare(IConfiguration configuration, ILogger<Cloudflare> log)
         {
-            _log = log;
-            _email = configuration["CloudflareAPIEmail"];
-            _apiKey = configuration["CloudflareAPIKey"];
-            _zoneIdentifier = configuration["CloudflareZoneIdentifier"];
+            _pwnedPasswordsUrl = configuration["PwnedPasswordsBaseUrl"];
+            if(string.IsNullOrEmpty(_pwnedPasswordsUrl))
+            {
+                throw new KeyNotFoundException("\"PwnedPasswordsBaseUrl\" has not been configured.");
+            }
 
-            _httpClient.DefaultRequestHeaders.Accept.Clear();
-            _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-            _httpClient.DefaultRequestHeaders.Add("X-Auth-Email", _email);
-            _httpClient.DefaultRequestHeaders.Add("X-Auth-Key", _apiKey);
+            string apiToken = configuration["CloudflareAPIToken"];
+            if(string.IsNullOrEmpty(apiToken))
+            {
+                throw new KeyNotFoundException("\"CloudflareAPIToken\" has not been configured.");
+            }
+
+            string zoneId = configuration["CloudflareZoneIdentifier"];
+            if(string.IsNullOrEmpty(zoneId))
+            {
+                throw new KeyNotFoundException("\"CloudflareZoneIdentifier\" has not been configured.");
+
+            }
+
+            _log = log;
+            s_httpClient.BaseAddress = new Uri($"https://api.cloudflare.com/client/v4/zones/{zoneId}/purge_cache");
+            s_httpClient.DefaultRequestHeaders.Accept.Clear();
+            s_httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            s_httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiToken); ;
         }
 
         /// <summary>
@@ -50,51 +60,42 @@ namespace Functions
         /// <returns>Boolean stating if Cloudflare returned a success in the JSON response</returns>
         public async Task<bool> PurgeFile(string[] hashPrefixes)
         {
-            if (!CanMakeCloudflareRequest())
-            {
-                _log.LogWarning("Unable to make Cloudflare request due to missing configuration values");
-                return false;
-            }
+            var filesToPurge = new { files = new List<string>(hashPrefixes.Length) };
 
-            var urlArray = new JArray();
             for (int i = 0; i < hashPrefixes.Length; i++)
             {
-                urlArray.Add($"{PWNEDPASSWORDS_URL}/range/{hashPrefixes[i]}");
+                filesToPurge.files[i] = new UriBuilder(_pwnedPasswordsUrl) { Path = $"range/{hashPrefixes[i]}" }.Uri.ToString();
             }
 
-            var requestContent = JsonConvert.SerializeObject(urlArray);
-
-            var url = string.Format(PURGE_FILE, _zoneIdentifier);
+            string? requestContent = JsonSerializer.Serialize(filesToPurge);
 
             var sw = Stopwatch.StartNew();
-            var response = await _httpClient.PostAsJsonAsync(url, requestContent);
-            sw.Stop();
-
-            var content = await response.Content.ReadAsStringAsync();
-
-            var result = JObject.Parse(content);
-            var success = result.Value<bool>("success");
-
-            if (success)
+            using (HttpResponseMessage? response = await s_httpClient.PostAsJsonAsync(string.Empty, requestContent))
             {
-                _log.LogInformation($"Purging {hashPrefixes.Length} files from Cloudflare Cache took {sw.ElapsedMilliseconds:n0}ms");
-            }
-            else
-            {
-                _log.LogError($"Cloudflare Request failed in {sw.ElapsedMilliseconds:n0}ms");
-                _log.LogError(content);
-            }
+                sw.Stop();
+                try
+                {
+                    JsonDocument? result = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                    bool success = result.RootElement.GetProperty("success").GetBoolean();
 
-            return success;
-        }
+                    if (success)
+                    {
+                        _log.LogInformation($"Purging {hashPrefixes.Length} files from Cloudflare Cache took {sw.ElapsedMilliseconds:n0}ms");
+                    }
+                    else
+                    {
+                        _log.LogError($"Cloudflare Request failed in {sw.ElapsedMilliseconds:n0}ms");
+                        _log.LogError(result.ToString());
+                    }
 
-        /// <summary>
-        /// Check if a Cloudflare request can be made
-        /// </summary>
-        /// <returns>True if we have a populated API key and Zone identifier</returns>
-        private bool CanMakeCloudflareRequest()
-        {
-            return !string.IsNullOrEmpty(_email) && !string.IsNullOrEmpty(_apiKey) && !string.IsNullOrEmpty(_zoneIdentifier);
+                    return success;
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Cloudflare request failed.");
+                    return false;
+                }
+            }
         }
     }
 }
