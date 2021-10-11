@@ -1,14 +1,30 @@
 ﻿using System;
+
 using Azure;
 using Azure.Data.Tables;
 
-namespace Functions
+namespace HaveIBeenPwned.PwnedPasswords.Models
 {
     /// <summary>
     /// Azure Table Storage entity for a Pwned Password
     /// </summary>
     public class PwnedPasswordEntity : ITableEntity
     {
+        /// <summary>
+        /// Creates a new PwnedPassword entity row from a <see cref="PwnedPasswordAppend"/>
+        /// <param name="appendRequest">PwnedPassword append model data to use</param>
+        /// </summary>
+        public PwnedPasswordEntity(string sha1Hash, string ntlmHash, int prevalence)
+        {
+            // Uses the pre-Blob Storage system of using the Partition key as the first five characters of
+            // the hash and the row key as the remainder of the hash
+            // See https://www.troyhunt.com/i-wanna-go-fast-why-searching-through-500m-pwned-passwords-is-so-quick/
+            PartitionKey = sha1Hash.Substring(0, 5);
+            RowKey = sha1Hash.Substring(5);
+            NTLMHash = ntlmHash;
+            Prevalence = prevalence;
+        }
+
         /// <summary>
         /// The Partition Key for this entity
         /// </summary>
@@ -42,26 +58,11 @@ namespace Functions
         /// <summary>
         /// Empty constructor - required by TableEntity
         /// </summary>
-        public PwnedPasswordEntity ()
+        public PwnedPasswordEntity()
         {
             PartitionKey = "";
             RowKey = "";
             NTLMHash = "";
-        }
-
-        /// <summary>
-        /// Creates a new PwnedPassword entity row from a <see cref="PwnedPasswordAppend"/>
-        /// <param name="appendRequest">PwnedPassword append model data to use</param>
-        /// </summary>
-        public PwnedPasswordEntity(PwnedPasswordAppend appendRequest)
-        {
-            // Uses the pre-Blob Storage system of using the Partition key as the first five characters of
-            // the hash and the row key as the remainder of the hash
-            // See https://www.troyhunt.com/i-wanna-go-fast-why-searching-through-500m-pwned-passwords-is-so-quick/
-            PartitionKey = appendRequest.PartitionKey;
-            RowKey = appendRequest.RowKey;
-            NTLMHash = appendRequest.NTLMHash;
-            Prevalence = appendRequest.Prevalence;
         }
     }
 }

@@ -1,42 +1,56 @@
 ﻿using Azure;
 using Azure.Data.Tables;
+
+using HaveIBeenPwned.PwnedPasswords.Models;
+
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Net;
-using System.Text;
 using System.Threading.Tasks;
 
-namespace Functions
+namespace HaveIBeenPwned.PwnedPasswords
 {
     /// <summary>
     /// Table Storage wrapper 
     /// </summary>
     public sealed class TableStorage
     {
-        private readonly TableClient _table;
-        private readonly TableClient _metadataTable;
+        private readonly TableClient _transactionTable;
+        private readonly TableClient _dataTable;
+        private readonly TableClient _hashDataTable;
+        private readonly TableClient _cachePurgeTable;
         private readonly ILogger _log;
+        private bool _initialized = false;
 
         private static readonly HashSet<string> _localCache = new();
 
         public TableStorage(IConfiguration configuration, ILogger<TableStorage> log)
         {
             _log = log;
-            ServicePointManager.UseNagleAlgorithm = false;
-            ServicePointManager.Expect100Continue = false;
-            ServicePointManager.DefaultConnectionLimit = 100;
-
-            var storageConnectionString = configuration["PwnedPasswordsConnectionString"];
-            var tableName = configuration["TableStorageName"];
-            var metadataTableName = configuration["MetadataTableStorageName"];
-
+            string? storageConnectionString = configuration["PwnedPasswordsConnectionString"];
+            string? tableNamespace = configuration["TableNamespace"];
             var tableServiceClient = new TableServiceClient(storageConnectionString);
+            _transactionTable = tableServiceClient.GetTableClient($"{tableNamespace}transactions");
+            _dataTable = tableServiceClient.GetTableClient($"{tableNamespace}transactiondata");
+            _hashDataTable = tableServiceClient.GetTableClient($"{tableNamespace}hashdata");
+            _cachePurgeTable = tableServiceClient.GetTableClient($"{tableNamespace}cachepurge");
+        }
 
-            _table = tableServiceClient.GetTableClient(tableName);
-            _metadataTable = tableServiceClient.GetTableClient(metadataTableName);
+        private async ValueTask InitializeIfNeededAsync()
+        {
+            if (!_initialized)
+            {
+                await _transactionTable.CreateIfNotExistsAsync();
+                await _dataTable.CreateIfNotExistsAsync();
+                await _hashDataTable.CreateIfNotExistsAsync();
+                await _cachePurgeTable.CreateIfNotExistsAsync();
+                _initialized = true;
+            }
         }
 
         /// <summary>
@@ -45,14 +59,15 @@ namespace Functions
         /// <param name="hashPrefix">The hash prefix to use to lookup the blob storage file</param>
         /// <param name="lastModified">Pointer to the DateTimeOffset for the last time that the blob was modified</param>
         /// <returns>Returns a correctly formatted string to write to the Blob file</returns>
-        public string GetByHashesByPrefix(string hashPrefix, out DateTimeOffset? lastModified)
+        public async Task<(string response, DateTimeOffset? lastModified)> GetByHashesByPrefix(string hashPrefix)
         {
-            lastModified = DateTimeOffset.MinValue;
+            /*
+            DateTimeOffset? lastModified = DateTimeOffset.MinValue;
             var responseBuilder = new StringBuilder();
             var i = 0;
-            var query = _metadataTable.Query<PwnedPasswordEntity>(filter: $"PartitionKey eq {hashPrefix}");
+            var query = _table.QueryAsync<PwnedPasswordEntity>(x => x.PartitionKey == hashPrefix);
 
-            foreach (PwnedPasswordEntity entity in query)
+            await foreach (PwnedPasswordEntity entity in query)
             {
                 responseBuilder.Append(entity.RowKey);
                 responseBuilder.Append(':');
@@ -71,51 +86,64 @@ namespace Functions
                 _log.LogWarning($"Table Storage couldn't find any matching partition keys for \"{hashPrefix}\"");
             }
 
-            return responseBuilder.ToString();
+            return (responseBuilder.ToString(), lastModified);
+            */
+            return default;
         }
 
-        /// <summary>
-        /// Check if the contentID is a duplicate request
-        /// </summary>
-        /// <param name="contentID">Hash of the deserialised content and the client's IP address for idempotency</param>
-        /// <returns>True if the request is not a duplicate</returns>
-        public async Task<bool> IsNotDuplicateRequest(string contentID)
+        public async Task<string> InsertAppendData(PwnedPasswordAppend[] data, string clientId)
         {
-            var totalSw = Stopwatch.StartNew();
-            var searchSw = Stopwatch.StartNew();
+            await InitializeIfNeededAsync();
+            string transactionId = Guid.NewGuid().ToString();
+            await _transactionTable.AddEntityAsync(new AppendTransactionEntity { PartitionKey = clientId, RowKey = transactionId, Confirmed = false });
 
-            // First check that this request isn't in the local cache
-            if (_localCache.Contains(contentID))
+            TableTransactionAction[] transactionActions = new TableTransactionAction[data.Length];
+            for (int i = 0; i < data.Length; i++)
             {
-                searchSw.Stop();
-                totalSw.Stop();
-                _log.LogInformation($"Duplicate update request detected by local cache in {searchSw.ElapsedMilliseconds:n0}ms");
-                return false;
+                PwnedPasswordAppend? item = data[i];
+                transactionActions[i] = new TableTransactionAction(TableTransactionActionType.Add, new AppendDataEntity { PartitionKey = transactionId, RowKey = item.SHA1Hash, NTLMHash = item.NTLMHash, Prevalence = item.Prevalence });
             }
 
-            // Cache miss, check it isn't in the metadata table
+            await _dataTable.SubmitTransactionAsync(transactionActions);
+            return transactionId;
+        }
+
+        public async Task<IActionResult> ConfirmAppendDataAsync(string subscriptionId, string transactionId, StorageQueue storageQueue)
+        {
+            await InitializeIfNeededAsync();
             try
             {
-                var result = await _metadataTable.GetEntityAsync<TableEntity>("DuplicateRequest", contentID);
-                searchSw.Stop();
-                totalSw.Stop();
-                _log.LogInformation($"Duplicate update request detected by metadata table in {searchSw.ElapsedMilliseconds:n0}ms");
-                return false;
+                Response<AppendTransactionEntity> transactionEntityResponse = await _transactionTable.GetEntityAsync<AppendTransactionEntity>(subscriptionId, transactionId);
+                if (!transactionEntityResponse.Value.Confirmed)
+                {
+                    AsyncPageable<AppendDataEntity>? transactionDataResponse = _dataTable.QueryAsync<AppendDataEntity>(x => x.PartitionKey == transactionId);
+                    transactionEntityResponse.Value.Confirmed = true;
+                    var updateResponse = await _transactionTable.UpdateEntityAsync(transactionEntityResponse.Value, transactionEntityResponse.Value.ETag);
+
+                    await foreach (AppendDataEntity? item in transactionDataResponse)
+                    {
+                        // Send all the entities to the queue for processing.
+                        await storageQueue.PushPassword(subscriptionId, item);
+                    }
+
+                    _log.LogInformation("Transaction {TransactionId} confirmed.", transactionId);
+                    return new OkResult();
+                }
+
+                return new ContentResult { StatusCode = StatusCodes.Status400BadRequest, Content = "TransactionId has already been confirmed.", ContentType = "text/plain" };
             }
-            catch (RequestFailedException)
+            catch (RequestFailedException e) when (e.Status == 404)
             {
-                var duplicateSw = Stopwatch.StartNew();
-                _localCache.Add(contentID);
-
-                await _metadataTable.AddEntityAsync(new TableEntity("DuplicateRequest", contentID));
-
-                duplicateSw.Stop();
-                _log.LogInformation($"DuplicateRequest took {duplicateSw.ElapsedMilliseconds:n0}ms");
-
-                totalSw.Stop();
-                _log.LogInformation($"Total duplication check completed in {totalSw.ElapsedMilliseconds:n0}ms");
-
-                return true;
+                return new ContentResult { StatusCode = StatusCodes.Status404NotFound, Content = "TransactionId not found.", ContentType = "text/plain" };
+            }
+            catch(RequestFailedException e) when (e.Status == StatusCodes.Status409Conflict)
+            {
+                return new ContentResult { StatusCode = StatusCodes.Status409Conflict, Content = "TransactionId is already being confirmed.", ContentType = "text/plain" };
+            }
+            catch (RequestFailedException e)
+            {
+                _log.LogError(e, "Error looking up/updating transaction with id = {TransactionId} for subscription {SubscriptionId}.", transactionId, subscriptionId);
+                return new ContentResult { StatusCode = StatusCodes.Status500InternalServerError, Content = "An error occurred.", ContentType = "text/plain" };
             }
         }
 
@@ -123,56 +151,53 @@ namespace Functions
         /// Updates the prevalence for the given hash by a specified amount
         /// </summary>
         /// <param name="append">The append request to process</param>
-        public async Task UpdateHash(PwnedPasswordAppend append)
+        public async Task UpdateHashTable(AppendQueueItem append)
         {
+            await InitializeIfNeededAsync();
+            string partitionKey = append.SHA1Hash.Substring(0, 5);
+            string rowKey = append.SHA1Hash.Substring(5);
+
             try
             {
-                var totalSw = Stopwatch.StartNew();
-                var retrieveSw = Stopwatch.StartNew();
-
-                try
+                while (!await UpsertPwnedPasswordEntity(partitionKey, rowKey, append.NTLMHash, append.Prevalence))
                 {
-                    var entityResponse = await _table.GetEntityAsync<PwnedPasswordEntity>(append.PartitionKey, append.RowKey);
-                    retrieveSw.Stop();
-                    _log.LogInformation($"Retrieval of partition key and row key completed in {retrieveSw.ElapsedMilliseconds:n0}ms");
 
-                    var pwnedPassword = entityResponse.Value;
-                    pwnedPassword.Prevalence += append.Prevalence;
-                    var updateSw = Stopwatch.StartNew();
-                    await _table.UpdateEntityAsync(pwnedPassword, ETag.All);
-
-                    updateSw.Stop();
-                    _log.LogInformation($"Update took {updateSw.ElapsedMilliseconds:n0}ms");
                 }
-                // If the item doesn't exist
-                catch (RequestFailedException)
-                {
-                    retrieveSw.Stop();
-                    _log.LogInformation($"Retrieval of partition key and row key completed in {retrieveSw.ElapsedMilliseconds:n0}ms");
 
-                    var insertSw = Stopwatch.StartNew();
-                    await _table.AddEntityAsync(new PwnedPasswordEntity(append));
-                    insertSw.Stop();
-                    _log.LogInformation($"Insert took {insertSw.ElapsedMilliseconds:n0}ms");
-                }
-                
-
-                
-                var lastModifiedSw = Stopwatch.StartNew();
-
-                await _metadataTable.UpsertEntityAsync<TableEntity>(new TableEntity("LastModified", append.PartitionKey));
-
-                lastModifiedSw.Stop();
-                _log.LogInformation($"LastModified took {lastModifiedSw.ElapsedMilliseconds:n0}ms");
-
-                totalSw.Stop();
-                _log.LogInformation($"Total update completed in {totalSw.ElapsedMilliseconds:n0}ms");
+                await _cachePurgeTable.UpsertEntityAsync(new TableEntity($"{DateTime.UtcNow.Year}-{DateTime.UtcNow.Month}", partitionKey));
             }
             catch (Exception e)
             {
-                _log.LogError("An error occured", e, "TableStorage");
+                _log.LogError(e, "An error occured");
                 throw;
             }
+        }
+
+        private async Task<bool> UpsertPwnedPasswordEntity(string partitionKey, string rowKey, string ntlmHash, int prevalence)
+        {
+            try
+            {
+                try
+                {
+                    var entityResponse = await _hashDataTable.GetEntityAsync<PwnedPasswordEntity>(partitionKey, rowKey);
+                    var pwnedPassword = entityResponse.Value;
+                    pwnedPassword.Prevalence += prevalence;
+                    await _hashDataTable.UpdateEntityAsync(pwnedPassword, pwnedPassword.ETag);
+                }
+                // If the item doesn't exist
+                catch (RequestFailedException e) when (e.Status == StatusCodes.Status404NotFound)
+                {
+                    var insertSw = Stopwatch.StartNew();
+                    await _hashDataTable.AddEntityAsync(new PwnedPasswordEntity { PartitionKey = partitionKey, RowKey = rowKey, NTLMHash = ntlmHash, Prevalence = prevalence });
+                }
+            }
+            catch(RequestFailedException e) when (e.Status == StatusCodes.Status412PreconditionFailed || e.Status == StatusCodes.Status409Conflict)
+            {
+                _log.LogWarning(e, $"Unable to update or insert PwnedPasswordEntity {partitionKey}:{rowKey} as it has already been updated.");
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -182,11 +207,12 @@ namespace Functions
         /// <returns>List of partition keys which have been modified</returns>
         public async Task<string[]> GetModifiedPartitions(DateTimeOffset timeLimit)
         {
+            /*
             var modifiedPartitions = new List<string>();
             var sw = Stopwatch.StartNew();
 
             // Using a fixed partition key should speed up the operation
-            var query = _metadataTable.QueryAsync<TableEntity>(filter: "PartitionKey eq LastModified");
+            var query = _metadataTable.QueryAsync<TableEntity>(x => x.PartitionKey == "LastModified" && x.Timestamp >= timeLimit);
 
             await foreach (TableEntity entity in query)
             {
@@ -197,6 +223,8 @@ namespace Functions
             _log.LogInformation($"Identifying {modifiedPartitions.Count} modified partitions since {timeLimit.UtcDateTime} took {sw.ElapsedMilliseconds:n0}ms");
 
             return modifiedPartitions.ToArray();
+            */
+            return Array.Empty<string>();
         }
 
         /// <summary>
@@ -210,7 +238,9 @@ namespace Functions
 
         private async Task DeleteItemFromMetadataTable(string partitionKey, string rowKey)
         {
+            /*
             await _metadataTable.DeleteEntityAsync(partitionKey, rowKey);
+            */
         }
 
         /// <summary>
@@ -218,6 +248,7 @@ namespace Functions
         /// </summary>
         public async Task RemoveOldDuplicateRequests()
         {
+            /*
             var now = DateTimeOffset.UtcNow;
             var deleteCount = 0;
 
@@ -236,6 +267,7 @@ namespace Functions
 
             sw.Stop();
             _log.LogInformation($"Cleaning up {deleteCount} modified partitions took {sw.ElapsedMilliseconds:n0}ms");
+            */
         }
     }
 }

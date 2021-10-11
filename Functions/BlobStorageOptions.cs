@@ -1,6 +1,7 @@
+
 using Microsoft.Extensions.Options;
 
-namespace Functions
+namespace HaveIBeenPwned.PwnedPasswords
 {
     public class BlobStorageOptions : IOptions<BlobStorageOptions>
     {
