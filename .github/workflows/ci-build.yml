@@ -18,6 +18,7 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 6.0.x
+        include-prerelease: true
 
     - name: Setup .NET 3.1 SDK
       uses: actions/setup-dotnet@v1
