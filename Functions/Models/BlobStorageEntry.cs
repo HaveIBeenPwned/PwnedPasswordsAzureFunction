@@ -8,5 +8,17 @@ namespace HaveIBeenPwned.PwnedPasswords.Models
     /// <summary>
     /// Blob storage entry
     /// </summary>
-    public record BlobStorageEntry(Stream Stream, DateTimeOffset LastModified, ETag ETag);
+    public class BlobStorageEntry
+    {
+        public Stream Stream { get; }
+        public DateTimeOffset LastModified { get; }
+        public ETag ETag { get; }
+
+        public BlobStorageEntry(Stream stream, DateTimeOffset lastModified, ETag etag)
+        {
+            Stream = stream;
+            LastModified = lastModified;
+            ETag = etag;
+        }
+    }
 }

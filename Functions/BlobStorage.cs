@@ -79,9 +79,9 @@ namespace HaveIBeenPwned.PwnedPasswords
 
             BlobClient? blobClient = _blobContainerClient.GetBlobClient(fileName);
 
-            using (MemoryStream memStream = new())
+            using (var memStream = new MemoryStream())
             {
-                using (StreamWriter writer = new(memStream))
+                using (var writer = new StreamWriter(memStream))
                 {
                     await writer.WriteAsync(hashPrefixFileContents);
                     await writer.FlushAsync();
@@ -101,11 +101,11 @@ namespace HaveIBeenPwned.PwnedPasswords
             string? fileName = $"{hashPrefix}.txt";
             BlobClient? blobClient = _blobContainerClient.GetBlobClient(fileName);
 
-            using (MemoryStream memStream = new())
+            using (var memStream = new MemoryStream())
             {
-                using (StreamWriter writer = new(memStream))
+                using (var writer = new StreamWriter(memStream))
                 {
-                    foreach(var item in hashes)
+                    foreach (var item in hashes)
                     {
                         writer.WriteLine($"{item.Key}:{item.Value:n0}");
                     }

@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 
 namespace HaveIBeenPwned.PwnedPasswords
 {
@@ -12,6 +13,9 @@ namespace HaveIBeenPwned.PwnedPasswords
     /// </summary>
     public static class Hash
     {
+        private static ThreadLocal<SHA1> _sha1 = new ThreadLocal<SHA1>(SHA1.Create);
+        private static readonly char[] s_hexChars = new[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
         /// <summary>
         /// Create a SHA-1 hash
         /// </summary>
@@ -21,9 +25,17 @@ namespace HaveIBeenPwned.PwnedPasswords
         public static string CreateSHA1Hash(this string input, string source = "UTF8")
         {
             Encoding encoding = source == "UTF8" ? Encoding.UTF8 : Encoding.Unicode;
-            Span<byte> hash = stackalloc byte[20];
-            _ = SHA1.HashData(encoding.GetBytes(input), hash);
-            return Convert.ToHexString(hash);
+            Span<char> hashChars = stackalloc char[40];
+            byte[] hash = _sha1.Value.ComputeHash(encoding.GetBytes(input));
+            for (int i = 0; i < 20; i++)
+            {
+                int hashIndex = i * 2;
+                byte x = hash[i];
+                hashChars[hashIndex] = s_hexChars[(x >> 4) & 0xF];
+                hashChars[hashIndex + 1] = s_hexChars[(x) & 0x0F];
+            }
+
+            return new string(hashChars);
         }
 
         /// <summary>

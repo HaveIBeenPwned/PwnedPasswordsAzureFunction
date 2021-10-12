@@ -21,7 +21,6 @@
         }
     },
     "logging": {
-        "fileLoggingMode": "debugOnly",
         "logLevel": {
             "Host.Results": "Information",
             "Function": "Information",
@@ -29,17 +28,8 @@
             "default": "None"
         },
         "applicationInsights": {
-            "enableLiveMetrics": true,
-            "enableDependencyTracking": true,
-            "enablePerformanceCountersCollection": true,
-            "httpAutoCollectionOptions": {
-                "enableW3CDistributedTracing": true,
-                "enableHttpTriggerExtendedInfoCollection": true,
-                "enableResponseHeaderInjection": true
-            },
             "samplingSettings": {
-                "excludedTypes": "Request,Exception",
-                "isEnabled": true
+                "isEnabled": false
             }
         }
     }

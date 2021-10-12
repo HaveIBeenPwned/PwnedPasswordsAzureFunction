@@ -12,7 +12,6 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using HaveIBeenPwned.PwnedPasswords.Models;
-using Microsoft.ApplicationInsights.DataContracts;
 using System.Collections.Generic;
 using System.IO;
 
@@ -61,10 +60,9 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
                 return req.BadRequest("Api-Subscription-Id header missing or invalid");
             }
 
+            Activity.Current?.AddTag("SubscriptionId", subscriptionId);
             using (_log.BeginScope("{SubscriptionId}", subscriptionId))
             {
-                var telemetry = req.HttpContext.Features.Get<RequestTelemetry>();
-                telemetry.Context.User.Id = subscriptionId;
                 try
                 {
                     var validateSw = Stopwatch.StartNew();
@@ -115,10 +113,9 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
                 return req.BadRequest("Api-Subscription-Id header missing or invalid");
             }
 
+            Activity.Current?.AddTag("SubscriptionId", subscriptionId);
             using (_log.BeginScope("{SubscriptionId}", subscriptionId))
             {
-                var telemetry = req.HttpContext.Features.Get<RequestTelemetry>();
-                telemetry.Context.User.Id = subscriptionId;
                 try
                 {
                     ConfirmAppendModel? data = await JsonSerializer.DeserializeAsync<ConfirmAppendModel>(req.Body);
@@ -143,9 +140,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
         public async Task ProcessQueueItemForAppend([QueueTrigger("%TableNamespace%-ingestion", Connection = "PwnedPasswordsConnectionString")]AppendQueueItem item)
         {
             // Let's set some activity tags and log scopes so we have event correlation in our logs!
-            Activity.Current
-                .AddTag("SubscriptionId", item.SubscriptionId)
-                .AddTag("TransactionId", item.TransactionId);
+            Activity.Current?.AddTag("SubscriptionId", item.SubscriptionId).AddTag("TransactionId", item.TransactionId);
             using (var scope = _log.BeginScope("{SubscriptionId:TransactionId}", item.SubscriptionId, item.TransactionId))
             {
                 await _tableStorage.UpdateHashTable(item);

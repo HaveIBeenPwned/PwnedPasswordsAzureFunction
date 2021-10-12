@@ -27,7 +27,7 @@ namespace HaveIBeenPwned.PwnedPasswords
         private readonly ILogger _log;
         private bool _initialized = false;
 
-        private static readonly HashSet<string> _localCache = new();
+        private static readonly HashSet<string> _localCache = new HashSet<string>();
 
         public TableStorage(IConfiguration configuration, ILogger<TableStorage> log)
         {
