@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -16,7 +15,7 @@ namespace HaveIBeenPwned.PwnedPasswords
     /// </summary>
     public sealed class Cloudflare
     {
-        private static readonly HttpClient s_httpClient = new();
+        private static readonly HttpClient s_httpClient = new HttpClient();
         private readonly ILogger _log;
         private readonly string _pwnedPasswordsUrl;
 
