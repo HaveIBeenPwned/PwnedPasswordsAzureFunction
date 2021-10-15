@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 using Azure.Storage.Queues;
@@ -14,16 +15,30 @@ namespace HaveIBeenPwned.PwnedPasswords
     {
         private readonly ILogger _log;
         private readonly QueueClient _queueClient;
+        private readonly QueueClient _transactionQueueClient;
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1);
+        private volatile bool _initialized;
+
         internal string IngestionQueueName { get; }
-        private bool _initialized;
+        internal string TransactionQueueName { get; }
 
         public StorageQueue(IConfiguration configuration, ILogger<StorageQueue> log)
         {
             _log = log;
             string? storageConnectionString = configuration["PwnedPasswordsConnectionString"];
             IngestionQueueName = $"{configuration["TableNamespace"]}-ingestion";
-            
-            _queueClient = new QueueClient(storageConnectionString, IngestionQueueName, new QueueClientOptions { MessageEncoding = QueueMessageEncoding.Base64 });
+            TransactionQueueName = $"{configuration["TableNamespace"]}-transaction";
+
+            QueueClientOptions options = new QueueClientOptions { MessageEncoding = QueueMessageEncoding.Base64 };
+            _queueClient = new QueueClient(storageConnectionString, IngestionQueueName, options);
+            _transactionQueueClient = new QueueClient(storageConnectionString, TransactionQueueName, options);
+        }
+
+        public async Task PushTransaction(string subscriptionId, string transactionId)
+        {
+            await InitializeIfNeeded().ConfigureAwait(false);
+            await _transactionQueueClient.SendMessageAsync(JsonSerializer.Serialize(new QueueTransactionEntry { SubscriptionId = subscriptionId, TransactionId = transactionId }));
+            _log.LogInformation("Subscription {SubscriptionId} successfully queued transaction {TransactionId} for processing.", subscriptionId, transactionId);
         }
 
         /// <summary>
@@ -32,16 +47,23 @@ namespace HaveIBeenPwned.PwnedPasswords
         /// <param name="append">The append request to push to the queue</param>
         public async Task PushPassword(string subscriptionId, AppendDataEntity append)
         {
-            await InitializeIfNeeded();
-            await _queueClient.SendMessageAsync(JsonSerializer.Serialize(new AppendQueueItem { SubscriptionId = subscriptionId, TransactionId = append.PartitionKey, SHA1Hash = append.RowKey, NTLMHash = append.NTLMHash, Prevalence = append.Prevalence }));
+            await InitializeIfNeeded().ConfigureAwait(false);
+            await _queueClient.SendMessageAsync(JsonSerializer.Serialize(new AppendQueueItem { SubscriptionId = subscriptionId, TransactionId = append.PartitionKey, SHA1Hash = append.RowKey, NTLMHash = append.NTLMHash, Prevalence = append.Prevalence })).ConfigureAwait(false);
+            _log.LogInformation("Subscription {SubscriptionId} successfully queued SHA1 hash {SHA1} as part af transaction {TransactionId}", subscriptionId, append.RowKey, append.PartitionKey);
         }
 
         private async Task InitializeIfNeeded()
         {
             if (!_initialized)
             {
-                await _queueClient.CreateIfNotExistsAsync();
-                _initialized = true;
+                await _semaphore.WaitAsync().ConfigureAwait(false);
+                if (!_initialized)
+                {
+                    await Task.WhenAll(_queueClient.CreateIfNotExistsAsync(), _transactionQueueClient.CreateIfNotExistsAsync()).ConfigureAwait(false);
+                    _initialized = true;
+                }
+
+                _semaphore.Release();
             }
         }
     }

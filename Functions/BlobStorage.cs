@@ -36,7 +36,6 @@ namespace HaveIBeenPwned.PwnedPasswords
             BlobStorageOptions? storageOptions = options.Value;
 
             _log = log;
-            _log.LogInformation("Querying container: {ContainerName}", storageOptions.BlobContainerName);
             _blobContainerClient = blobServiceClient.GetBlobContainerClient(storageOptions.BlobContainerName);
         }
 
@@ -52,12 +51,7 @@ namespace HaveIBeenPwned.PwnedPasswords
 
             try
             {
-                var sw = Stopwatch.StartNew();
                 Response<Azure.Storage.Blobs.Models.BlobDownloadStreamingResult>? response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
-                sw.Stop();
-
-                _log.LogInformation("Hash file downloaded in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds.ToString("n0"));
-
                 return new BlobStorageEntry(response.Value.Content, response.Value.Details.LastModified, response.Value.Details.ETag);
             }
             catch (RequestFailedException ex) when (ex.Status == 404)

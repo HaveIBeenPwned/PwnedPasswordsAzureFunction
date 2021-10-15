@@ -57,43 +57,52 @@ namespace HaveIBeenPwned.PwnedPasswords
         /// </summary>
         /// <param name="hashPrefixes">Array of hash prefixes</param>
         /// <returns>Boolean stating if Cloudflare returned a success in the JSON response</returns>
-        public async Task<bool> PurgeFile(string[] hashPrefixes)
+        public async Task PurgeFile(string[] hashPrefixes)
         {
-            var filesToPurge = new { files = new List<string>(hashPrefixes.Length) };
+            async Task SendPurgeCommand(List<string> urisToPurge)
+            {
+                var sw = Stopwatch.StartNew();
+                using (HttpResponseMessage? response = await s_httpClient.PostAsJsonAsync(string.Empty, new { files = urisToPurge }))
+                {
+                    sw.Stop();
+                    try
+                    {
+                        JsonDocument? result = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                        bool success = result.RootElement.GetProperty("success").GetBoolean();
+
+                        if (success)
+                        {
+                            _log.LogInformation($"Purging {urisToPurge.Count} files from Cloudflare Cache took {sw.ElapsedMilliseconds:n0}ms");
+                        }
+                        else
+                        {
+                            _log.LogError($"Cloudflare Request failed in {sw.ElapsedMilliseconds:n0}ms");
+                            _log.LogError(result.ToString());
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogError(ex, "Cloudflare request failed.");
+                    }
+                }
+            }
+
+            // We can max purge 30 uris at a time.
+            var filesToPurge = new List<string>(30);
 
             for (int i = 0; i < hashPrefixes.Length; i++)
             {
-                filesToPurge.files[i] = new UriBuilder(_pwnedPasswordsUrl) { Path = $"range/{hashPrefixes[i]}" }.Uri.ToString();
+                filesToPurge.Add(new UriBuilder(_pwnedPasswordsUrl) { Path = $"range/{hashPrefixes[i]}" }.Uri.ToString());
+                if (filesToPurge.Count == 30)
+                {
+                    await SendPurgeCommand(filesToPurge);
+                    filesToPurge.Clear();
+                }
             }
 
-            string? requestContent = JsonSerializer.Serialize(filesToPurge);
-
-            var sw = Stopwatch.StartNew();
-            using (HttpResponseMessage? response = await s_httpClient.PostAsJsonAsync(string.Empty, requestContent))
+            if (filesToPurge.Count > 0)
             {
-                sw.Stop();
-                try
-                {
-                    JsonDocument? result = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-                    bool success = result.RootElement.GetProperty("success").GetBoolean();
-
-                    if (success)
-                    {
-                        _log.LogInformation($"Purging {hashPrefixes.Length} files from Cloudflare Cache took {sw.ElapsedMilliseconds:n0}ms");
-                    }
-                    else
-                    {
-                        _log.LogError($"Cloudflare Request failed in {sw.ElapsedMilliseconds:n0}ms");
-                        _log.LogError(result.ToString());
-                    }
-
-                    return success;
-                }
-                catch (Exception ex)
-                {
-                    _log.LogError(ex, "Cloudflare request failed.");
-                    return false;
-                }
+                await SendPurgeCommand(filesToPurge);
             }
         }
     }

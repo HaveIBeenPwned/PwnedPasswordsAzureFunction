@@ -3,7 +3,7 @@
 *SOME INTRO TEXT*
 
 ## Submitting hashes for ingestion
-The PwnedPasswords ingestion endpoint can be found at the `/append` path. To send passwords for ingestiong you'll need to send a JSON array with each element containing a `sha1Hash`, `ntlmHash` and a `prevalence` for each password.
+The PwnedPasswords ingestion endpoint can be found at the `/ingestion/append` path. To submit passwords for ingestion you'll need to send a JSON array with each element containing a `sha1Hash`, `ntlmHash` and a `prevalence` for each password.
 
 Example JSON document for the passwords `Passw0rd!` and `hunter2` :
 ```json
@@ -23,7 +23,7 @@ Example JSON document for the passwords `Passw0rd!` and `hunter2` :
 
 The ingestion endpoint is authenticated with [Azure API Management](https://azure.microsoft.com/en-us/services/api-management/) and requires a valid subscription key to be sent with the `Ocp-Apim-Subscription-Key` HTTP header. Here is an example request:
 ```http
-POST /append HTTP/1.1
+POST /ingestion/append HTTP/1.1
 Host: api.pwnedpasswords.com
 Ocp-Apim-Subscription-Key: __EXAMPLE_SUBSCRIPTION_KEY__
 Content-Type: application/json
@@ -53,7 +53,7 @@ Example response:
 ```
 
 ## Confirming hash submission
-To confirm the submission, the transaction ID must be submitted to the `/append/confirm` endpoint, again providing the API Management subscription key. This step is intentional to reduce accidental multiple submissions. Non-confirmed submissions will be deleted if they aren't confirmed within 24 hours.
+To confirm the submission, the transaction ID must be submitted to the `/ingestion/append/confirm` endpoint, again providing the API Management subscription key. This step is intentional to reduce accidental multiple submissions. Non-confirmed submissions will be deleted if they aren't confirmed within 24 hours.
 
 Example request:
 ```http
@@ -68,4 +68,4 @@ Content-Length: 65
 }
 ```
 
-If the transaction is found and has not been confirmed already, the API will respond with a 200 OK response.
+If the transaction is found and has not been confirmed already, the API will respond with a 200 OK response. The hashes will then be queued and processes. The updates won't show up immediately in the blobs, but they should have their cache purged at 00:30 UTC the next day.
