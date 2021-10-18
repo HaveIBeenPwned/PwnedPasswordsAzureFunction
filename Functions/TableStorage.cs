@@ -209,7 +209,7 @@ namespace HaveIBeenPwned.PwnedPasswords
         /// <returns>List of partition keys which have been modified</returns>
         public async Task<string[]> GetModifiedBlobs()
         {
-            var yesterday = DateTime.UtcNow.AddDays(0);
+            var yesterday = DateTime.UtcNow.AddDays(-1);
             var results = _cachePurgeTable.QueryAsync<TableEntity>(x => x.PartitionKey == $"{yesterday.Year}-{yesterday.Month}-{yesterday.Day}");
             List<string> prefixes = new List<string>();
             await foreach(TableEntity? item in results)
