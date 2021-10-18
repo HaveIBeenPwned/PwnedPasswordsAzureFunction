@@ -19,6 +19,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
 {
     public class Append
     {
+        private const string SubscriptionIdHeaderKey = "Api-Subscription-Id";
         private readonly ILogger<Append> _log;
         private readonly TableStorage _tableStorage;
         private readonly StorageQueue _queueStorage;
@@ -54,46 +55,35 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
                 return req.BadRequest("Content-Type must be application/json");
             }
 
-            string subscriptionId = req.Headers["Api-Subscription-Id"].ToString();
+            string subscriptionId = req.Headers[SubscriptionIdHeaderKey].ToString();
             if (string.IsNullOrEmpty(subscriptionId))
             {
                 return req.BadRequest("Api-Subscription-Id header missing or invalid");
             }
 
             Activity.Current?.AddTag("SubscriptionId", subscriptionId);
-            using (_log.BeginScope("{SubscriptionId}", subscriptionId))
+            try
             {
-                try
+                PwnedPasswordAppend[]? data = await JsonSerializer.DeserializeAsync<PwnedPasswordAppend[]>(req.Body);
+                if (data != null)
                 {
-                    var validateSw = Stopwatch.StartNew();
-                    PwnedPasswordAppend[]? data = await JsonSerializer.DeserializeAsync<PwnedPasswordAppend[]>(req.Body);
-                    if (data != null)
+                    if (req.TryValidateEntries(data, out IActionResult? errorResponse))
                     {
-                        if (req.TryValidateEntries(data, out IActionResult? errorResponse))
-                        {
-                            validateSw.Stop();
-                            _log.LogInformation($"Validated {data.Length} items in {validateSw.ElapsedMilliseconds:n0}ms");
-
-                            // Now insert the data
-                            var queueSw = Stopwatch.StartNew();
-                            string transactionId = await _tableStorage.InsertAppendData(data, subscriptionId);
-                            queueSw.Stop();
-                            _log.LogInformation("Added {items} items in {ElapsedMilliseconds}ms", data.Length, queueSw.ElapsedMilliseconds.ToString("n0"));
-
-                            return new OkObjectResult(new { transactionId });
-                        }
-
-                        return errorResponse;
+                        // Now insert the data
+                        string transactionId = await _tableStorage.InsertAppendData(data, subscriptionId);
+                        return new OkObjectResult(new { transactionId });
                     }
 
-                    return req.BadRequest("No content provided.");
+                    return errorResponse;
                 }
-                catch (JsonException e)
-                {
-                    // Error occurred trying to deserialize the JSON payload.
-                    _log.LogError(e, "Unable to parson JSON");
-                    return req.BadRequest($"Unable to parse JSON: {e.Message}");
-                }
+
+                return req.BadRequest("No content provided.");
+            }
+            catch (JsonException e)
+            {
+                // Error occurred trying to deserialize the JSON payload.
+                _log.LogError(e, "Unable to parson JSON for subscription {SubscriptionId}", subscriptionId);
+                return req.BadRequest($"Unable to parse JSON: {e.Message}");
             }
         }
 
@@ -107,75 +97,87 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
                 return req.BadRequest("Content-Type must be application/json");
             }
 
-            string subscriptionId = req.Headers["Api-Subscription-Id"].ToString();
+            string subscriptionId = req.Headers[SubscriptionIdHeaderKey].ToString();
             if (string.IsNullOrEmpty(subscriptionId))
             {
                 return req.BadRequest("Api-Subscription-Id header missing or invalid");
             }
 
             Activity.Current?.AddTag("SubscriptionId", subscriptionId);
-            using (_log.BeginScope("{SubscriptionId}", subscriptionId))
+            try
             {
-                try
+                ConfirmAppendModel? data = await JsonSerializer.DeserializeAsync<ConfirmAppendModel>(req.Body).ConfigureAwait(false);
+                if (data != null && !string.IsNullOrEmpty(data.TransactionId))
                 {
-                    ConfirmAppendModel? data = await JsonSerializer.DeserializeAsync<ConfirmAppendModel>(req.Body);
-                    if (data != null && !string.IsNullOrEmpty(data.TransactionId))
-                    {
-                        IActionResult result = await _tableStorage.ConfirmAppendDataAsync(subscriptionId, data.TransactionId, _queueStorage);
-                        return result;
-                    }
+                    Activity.Current?.AddTag("TransactionId", subscriptionId);
+                    return await _tableStorage.ConfirmAppendDataAsync(subscriptionId, data.TransactionId, _queueStorage);
+                }
 
-                    return req.BadRequest("No content provided.");
-                }
-                catch (JsonException e)
-                {
-                    // Error occurred trying to deserialize the JSON payload.
-                    _log.LogError(e, "Unable to parson JSON");
-                    return req.BadRequest($"Unable to parse JSON: {e.Message}");
-                }
+                return req.BadRequest("No content provided.");
+            }
+            catch (JsonException e)
+            {
+                // Error occurred trying to deserialize the JSON payload.
+                _log.LogError(e, "Unable to parson JSON");
+                return req.BadRequest($"Unable to parse JSON: {e.Message}");
             }
         }
 
+        [FunctionName("ProcessTransactionQueueItem")]
+        public async Task ProcessTransactionItemForAppend([QueueTrigger("%TableNamespace%-transaction", Connection = "PwnedPasswordsConnectionString")] QueueTransactionEntry item)
+        {
+            Activity.Current?.AddTag("SubscriptionId", item.SubscriptionId).AddTag("TransactionId", item.TransactionId);
+            await _tableStorage.ProcessTransactionAsync(item.SubscriptionId, item.TransactionId, _queueStorage).ConfigureAwait(false);
+        }
+
+
         [FunctionName("ProcessAppendQueueItem")]
-        public async Task ProcessQueueItemForAppend([QueueTrigger("%TableNamespace%-ingestion", Connection = "PwnedPasswordsConnectionString")]AppendQueueItem item)
+        public async Task ProcessQueueItemForAppend([QueueTrigger("%TableNamespace%-ingestion", Connection = "PwnedPasswordsConnectionString")] AppendQueueItem item)
         {
             // Let's set some activity tags and log scopes so we have event correlation in our logs!
             Activity.Current?.AddTag("SubscriptionId", item.SubscriptionId).AddTag("TransactionId", item.TransactionId);
-            using (var scope = _log.BeginScope("{SubscriptionId:TransactionId}", item.SubscriptionId, item.TransactionId))
+            await _tableStorage.UpdateHashTable(item).ConfigureAwait(false);
+
+            string prefix = item.SHA1Hash[..5];
+            string suffix = item.SHA1Hash[5..];
+
+            bool blobUpdated = false;
+            while (!blobUpdated)
             {
-                await _tableStorage.UpdateHashTable(item);
-
-                string prefix = item.SHA1Hash[..5];
-                string suffix = item.SHA1Hash[5..];
-
-                bool blobUpdated = false;
-                while (!blobUpdated)
+                BlobStorageEntry? blobFile = await _blobStorage.GetHashesByPrefix(prefix).ConfigureAwait(false);
+                if (blobFile != null)
                 {
-                    BlobStorageEntry? blobFile = await _blobStorage.GetHashesByPrefix(prefix);
-                    if (blobFile != null)
+                    // Let's read the existing blob into a sorted dictionary so we can write it back in order!
+                    SortedDictionary<string, int> hashes = await ParseHashFile(blobFile).ConfigureAwait(false);
+
+                    // We now have a sorted dictionary with the hashes for this prefix.
+                    // Let's add or update the suffix with the prevalence count.
+                    if (hashes.ContainsKey(suffix))
                     {
-                        // Let's read the existing blob into a sorted dictionary so we can write it back in order!
-                        SortedDictionary<string, int> hashes = await ParseHashFile(blobFile);
-
-                        // We now have a sorted dictionary with the hashes for this prefix.
-                        // Let's add or update the suffix with the prevalence count.
-                        if (hashes.ContainsKey(suffix))
-                        {
-                            hashes[suffix] = hashes[suffix] + item.Prevalence;
-                        }
-                        else
-                        {
-                            hashes.Add(suffix, item.Prevalence);
-                        }
-
-                        // Now let's try to update the current blob with the new prevalence count!
-                        blobUpdated = await _blobStorage.UpdateBlobFile(prefix, hashes, blobFile.ETag);
+                        hashes[suffix] = hashes[suffix] + item.Prevalence;
+                        _log.LogInformation("Subscription {SubscriptionId} updating suffix {HashSuffix} in blob {HashPrefix} from {PrevalenceBefore} to {PrevalenceAfter} as part of transaction {TransactionId}!", item.SubscriptionId, suffix, prefix, hashes[suffix] - item.Prevalence, hashes[suffix], item.TransactionId);
                     }
                     else
                     {
-                        _log.LogError($"Unable to find a hash file with prefix {prefix}. Something is wrong!");
-                        return;
+                        hashes.Add(suffix, item.Prevalence);
+                        _log.LogInformation("Subscription {SubscriptionId} adding new suffix {HashSuffix} to blob {HashPrefix} with {Prevalence} as part of transaction {TransactionId}!", item.SubscriptionId, suffix, prefix, item.Prevalence, item.TransactionId);
                     }
+
+                    // Now let's try to update the current blob with the new prevalence count!
+                    blobUpdated = await _blobStorage.UpdateBlobFile(prefix, hashes, blobFile.ETag).ConfigureAwait(false);
+                    if (blobUpdated)
+                    {
+                        _log.LogInformation("Subscription {SubscriptionId} successfully updated blob {HashPrefix} as part of transaction {TransactionId}!", item.SubscriptionId, prefix, item.TransactionId);
+                    }
+                    else
+                    {
+                        _log.LogWarning("Subscription {SubscriptionId} failed to updated blob {HashPrefix} as part of transaction {TransactionId}! Will retry!", item.SubscriptionId, prefix, item.TransactionId);
+                    }
+                }
+                else
+                {
+                    _log.LogError("Subscription {SubscriptionId} is unable to find a hash file with prefix {prefix} as part of transaction {TransactionId}. Something is wrong as this shouldn't happen!", item.SubscriptionId, prefix, item.TransactionId);
+                    return;
                 }
             }
         }
@@ -189,7 +191,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
                 {
                     while (!reader.EndOfStream)
                     {
-                        string? hashLine = await reader.ReadLineAsync();
+                        string? hashLine = await reader.ReadLineAsync().ConfigureAwait(false);
                         // Let's make sure we can parse this as a proper hash!
                         if (!string.IsNullOrEmpty(hashLine) && hashLine.Length >= 37 && hashLine[35] == ':' && int.TryParse(hashLine[36..], out int currentPrevalence))
                         {
@@ -210,12 +212,12 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
         /// </summary>
         /// <param name="timer">Timer information</param>
         /// <param name="log">Logger</param>
-        //[Function("UpdateCloudflareCache")]
+        [FunctionName("UpdateCloudflareCache")]
         public async Task PurgeCloudflareCache(
 #if DEBUG
             // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
             // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
-            //[TimerTrigger("0 30 0 * * *", RunOnStartup = true)]
+            [TimerTrigger("0 30 0 * * *", RunOnStartup = true)]
 #else
             [TimerTrigger("0 30 0 * * *")]
 #endif
@@ -227,57 +229,25 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
                 return;
             }
 
-            _log.LogInformation($"Initiating scheduled Blob Storage update. Last run {timer.ScheduleStatus.Last.ToUniversalTime()}");
-
-            var sw = Stopwatch.StartNew();
-
             // Get a list of the partitions which have been modified
-            string[]? modifiedPartitions = await _tableStorage.GetModifiedPartitions(timer.ScheduleStatus.Last);
+            string[]? modifiedPartitions = await _tableStorage.GetModifiedBlobs();
 
             if (modifiedPartitions.Length == 0)
             {
-                sw.Stop();
-                _log.LogInformation($"Detected no purges needed for Cloudflare cache in {sw.ElapsedMilliseconds:n0}ms");
                 return;
             }
 
-            var updateSw = Stopwatch.StartNew();
-
-            for (int i = 0; i < modifiedPartitions.Length; i++)
-            {
-                // Now that we've successfully updated the Blob Storage, remove the partition from the table
-                await _tableStorage.RemoveModifiedPartitionFromTable(modifiedPartitions[i]);
-            }
-            updateSw.Stop();
-            _log.LogInformation($"Removing existing modified partitions from Table Storage took {sw.ElapsedMilliseconds:n0}ms");
-
             if (modifiedPartitions.Length > 0)
             {
-                await _cloudflare.PurgeFile(modifiedPartitions);
+                await _cloudflare.PurgeFile(modifiedPartitions).ConfigureAwait(false);
+                _log.LogInformation($"Successfully purged Cloudflare Cache.");
             }
-
-            sw.Stop();
-            _log.LogInformation($"Successfully updated Cloudflare Cache in {sw.ElapsedMilliseconds:n0}ms");
-        }
-
-        //[Function("ClearIdempotencyCache")]
-        public async Task ClearIdempotencyCache(
-#if DEBUG
-            // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
-            // See: https://blog.tdwright.co.uk/2018/09/06/beware-runonstartup-in-azure-functions-a-serverless-horror-story/
-            //[TimerTrigger("0 0 */1 * * *", RunOnStartup = true)]
-#else
-            [TimerTrigger("0 0 */1 * * *")]
-#endif
-            TimerInfo timer)
-        {
-            await _tableStorage.RemoveOldDuplicateRequests();
-            if (timer.ScheduleStatus != null)
+            else
             {
-                _log.LogInformation($"Next idempotency cache cleanup will occur at {timer.ScheduleStatus.Next}");
+                _log.LogInformation($"Detected no purges needed for Cloudflare cache.");
+
             }
         }
-
         #endregion
     }
 }
