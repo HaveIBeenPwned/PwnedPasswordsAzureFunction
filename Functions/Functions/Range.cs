@@ -1,7 +1,8 @@
 ﻿using System;
-using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 
+using HaveIBeenPwned.PwnedPasswords.Abstractions;
 using HaveIBeenPwned.PwnedPasswords.Models;
 
 using Microsoft.AspNetCore.Http;
@@ -17,14 +18,14 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
     /// </summary>
     public class Range
     {
-        private readonly IStorageService _blobStorage;
+        private readonly IFileStorage _blobStorage;
         private readonly ILogger<Range> _log;
 
         /// <summary>
         /// Pwned Passwords - Range handler
         /// </summary>
         /// <param name="blobStorage">The Blob storage</param>
-        public Range(IStorageService blobStorage, ILogger<Range> log)
+        public Range(IFileStorage blobStorage, ILogger<Range> log)
         {
             _blobStorage = blobStorage;
             _log = log;
@@ -47,8 +48,12 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
 
             try
             {
-                BlobStorageEntry? entry = await _blobStorage.GetHashesByPrefix(hashPrefix.ToUpper());
-                return entry == null ? req.NotFound() : req.File(entry);
+                PwnedPasswordsFile entry = await _blobStorage.GetHashFileAsync(hashPrefix.ToUpper());
+                return req.File(entry);
+            }
+            catch (FileNotFoundException)
+            {
+                return req.NotFound();
             }
             catch (Exception ex)
             {

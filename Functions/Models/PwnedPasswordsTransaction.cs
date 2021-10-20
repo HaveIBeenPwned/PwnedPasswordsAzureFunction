@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace HaveIBeenPwned.PwnedPasswords.Models
 {
-    public class ConfirmAppendModel
+    public class PwnedPasswordsTransaction
     {
         [JsonPropertyName("transactionId")]
         public string TransactionId { get; set; } = "";
