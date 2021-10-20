@@ -32,7 +32,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
         private readonly TableClient _hashDataTable;
         private readonly TableClient _cachePurgeTable;
         private readonly ILogger _log;
-        private bool _initialized = false;
+        private volatile bool _initialized = false;
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1);
 
         public TableStorage(IOptions<TableStorageOptions> options, ILogger<TableStorage> log)
@@ -49,14 +49,18 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
         {
             if (!_initialized)
             {
-                await _semaphore.WaitAsync();
+                if (!_semaphore.Wait(0))
+                {
+                    await _semaphore.WaitAsync().ConfigureAwait(false);
+                }
+
                 if (!_initialized)
                 {
                     await Task.WhenAll(
                         _transactionTable.CreateIfNotExistsAsync(),
                         _dataTable.CreateIfNotExistsAsync(),
                         _hashDataTable.CreateIfNotExistsAsync(),
-                        _cachePurgeTable.CreateIfNotExistsAsync());
+                        _cachePurgeTable.CreateIfNotExistsAsync()).ConfigureAwait(false);
                     _initialized = true;
                 }
 
@@ -66,30 +70,28 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
 
         public async Task<PwnedPasswordsTransaction> InsertAppendDataAsync(PwnedPasswordsIngestionValue[] data, string subscriptionId, CancellationToken cancellationToken = default)
         {
-            await InitializeIfNeededAsync();
+            await InitializeIfNeededAsync().ConfigureAwait(false);
             var transaction = new PwnedPasswordsTransaction { TransactionId = Guid.NewGuid().ToString() };
-            await _transactionTable.AddEntityAsync(new AppendTransactionEntity { PartitionKey = subscriptionId, RowKey = transaction.TransactionId, Confirmed = false }, cancellationToken);
+            await _transactionTable.AddEntityAsync(new AppendTransactionEntity { PartitionKey = subscriptionId, RowKey = transaction.TransactionId, Confirmed = false }, cancellationToken).ConfigureAwait(false);
             _log.LogInformation("Subscription {SubscriptionId} created a new transaction with id = {TransactionId}.", subscriptionId, transaction.TransactionId);
 
             var tableTransactions = new List<TableTransactionAction>(100);
-            var submitTasks = new List<Task>();
             for (int i = 0; i < data.Length; i++)
             {
                 PwnedPasswordsIngestionValue item = data[i];
                 tableTransactions.Add(new TableTransactionAction(TableTransactionActionType.Add, new AppendDataEntity { PartitionKey = transaction.TransactionId, RowKey = item.SHA1Hash, NTLMHash = item.NTLMHash, Prevalence = item.Prevalence }));
                 if (tableTransactions.Count == 100)
                 {
-                    submitTasks.Add(_dataTable.SubmitTransactionAsync(tableTransactions, cancellationToken));
-                    tableTransactions = new List<TableTransactionAction>(100);
+                    await _dataTable.SubmitTransactionAsync(tableTransactions, cancellationToken).ConfigureAwait(false);
+                    tableTransactions.Clear();
                 }
             }
 
             if (tableTransactions.Count > 0)
             {
-                submitTasks.Add(_dataTable.SubmitTransactionAsync(tableTransactions, cancellationToken));
+                await _dataTable.SubmitTransactionAsync(tableTransactions, cancellationToken).ConfigureAwait(false);
             }
 
-            await Task.WhenAll(submitTasks).ConfigureAwait(false);
             _log.LogInformation("Subscription {SubscriptionId} added {NumEntries} entries into transaction {TransactionId}", subscriptionId, data.Length, transaction.TransactionId);
             return transaction;
         }
@@ -103,7 +105,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
                 if (!transactionEntityResponse.Value.Confirmed)
                 {
                     transactionEntityResponse.Value.Confirmed = true;
-                    Response? updateResponse = await _transactionTable.UpdateEntityAsync(transactionEntityResponse.Value, transactionEntityResponse.Value.ETag).ConfigureAwait(false);
+                    Response? updateResponse = await _transactionTable.UpdateEntityAsync(transactionEntityResponse.Value, transactionEntityResponse.Value.ETag, cancellationToken: cancellationToken).ConfigureAwait(false);
                     _log.LogInformation("Subscription {SubscriptionId} successfully confirmed transaction {TransactionId}. Queueing data for blob updates.", subscriptionId, transaction.TransactionId);
                     return true;
                 }

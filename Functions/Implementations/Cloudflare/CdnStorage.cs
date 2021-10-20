@@ -25,11 +25,16 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Cloudflare
         /// Create a new instance of the Cloudflare wrapper
         /// </summary>
         /// <param name="log">Log to use</param>
-        public CdnStorage(IOptions<CdnStorageOptions> options, ILogger<CdnStorage> log, HttpClient httpClient)
+        public CdnStorage(IOptions<CdnStorageOptions> options, ILogger<CdnStorage> log, IHttpClientFactory httpClientFactory)
         {
             _options = options;
             _log = log;
-            _httpClient = httpClient;
+            _httpClient = httpClientFactory.CreateClient();
+            _httpClient.BaseAddress = new Uri($"https://api.cloudflare.com/client/v4/zones/{options.Value.ZoneIdentifier}/purge_cache");
+            _httpClient.DefaultRequestHeaders.Accept.Clear();
+            _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", options.Value.APIToken);
+            _httpClient.DefaultRequestVersion = new Version(2, 0);
         }
 
         /// <summary>
@@ -46,7 +51,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Cloudflare
                 {
                     try
                     {
-                        JsonDocument? result = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(), cancellationToken: cancellationToken);
+                        JsonDocument? result = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
                         bool success = result.RootElement.GetProperty("success").GetBoolean();
 
                         if (success)

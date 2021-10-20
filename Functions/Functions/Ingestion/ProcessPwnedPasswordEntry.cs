@@ -39,7 +39,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
         {
             // Let's set some activity tags and log scopes so we have event correlation in our logs!
             Activity.Current?.AddTag("SubscriptionId", item.SubscriptionId).AddTag("TransactionId", item.TransactionId);
-            while (!await _tableStorage.AddOrIncrementHashEntry(item.SubscriptionId, item.TransactionId, new PwnedPasswordsIngestionValue { SHA1Hash = item.SHA1Hash, NTLMHash = item.NTLMHash, Prevalence = item.Prevalence }).ConfigureAwait(false))
+            while (!await _tableStorage.AddOrIncrementHashEntry(item.SubscriptionId, item.TransactionId, new PwnedPasswordsIngestionValue { SHA1Hash = item.SHA1Hash, NTLMHash = item.NTLMHash, Prevalence = item.Prevalence }, cancellationToken).ConfigureAwait(false))
             {
             }
 
@@ -90,7 +90,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
             }
 
             // Now let's try to update the current blob with the new prevalence count!
-            return await _blobStorage.UpdateHashFileAsync(prefix, hashes, blobFile.ETag).ConfigureAwait(false);
+            return await _blobStorage.UpdateHashFileAsync(prefix, hashes, blobFile.ETag, cancellationToken).ConfigureAwait(false);
         }
 
         private static async Task<SortedDictionary<string, int>> ParseHashFile(PwnedPasswordsFile blobFile)
