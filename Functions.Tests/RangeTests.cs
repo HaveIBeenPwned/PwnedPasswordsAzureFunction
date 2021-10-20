@@ -1,13 +1,9 @@
 ﻿using System;
 using System.IO;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Azure;
-
-using FluentAssertions;
-
+using HaveIBeenPwned.PwnedPasswords.Abstractions;
 using HaveIBeenPwned.PwnedPasswords.Models;
 
 using Microsoft.AspNetCore.Http;
@@ -29,13 +25,13 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         public async Task Returns_ok_given_valid_hashprefix()
         {
             string validHashPrefix = "ABCDE";
-            var returnHashFile = new BlobStorageEntry(Stream.Null, DateTimeOffset.UtcNow, ETag.All);
-            var mockStorage = new Mock<IStorageService>();
-            mockStorage.Setup(s => s.GetHashesByPrefix(validHashPrefix, CancellationToken.None)).ReturnsAsync(returnHashFile);
+            var returnHashFile = new PwnedPasswordsFile(Stream.Null, DateTimeOffset.UtcNow, "*");
+            var mockStorage = new Mock<IFileStorage>();
+            mockStorage.Setup(s => s.GetHashFileAsync(validHashPrefix, CancellationToken.None)).ReturnsAsync(returnHashFile);
 
             var function = new Functions.Range(mockStorage.Object, s_nullLogger);
             var context = new DefaultHttpContext();
-            var actualResponse = await function.RunAsync(context.Request, validHashPrefix);
+            IActionResult? actualResponse = await function.RunAsync(context.Request, validHashPrefix);
 
             Assert.IsType<FileStreamResult>(actualResponse);
         }
@@ -43,14 +39,14 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         [Fact]
         public async Task Returns_notfound_if_hashprefix_doesnt_exist()
         {
-            var mockStorage = new Mock<IStorageService>();
-            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>(), CancellationToken.None)).ReturnsAsync(default(BlobStorageEntry));
+            var mockStorage = new Mock<IFileStorage>();
+            mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new FileNotFoundException());
 
             var function = new Functions.Range(mockStorage.Object, s_nullLogger);
             var context = new DefaultHttpContext();
-            var actualResponse = await function.RunAsync(context.Request, "ABCDE");
+            IActionResult? actualResponse = await function.RunAsync(context.Request, "ABCDE");
 
-            var result = Assert.IsType<ContentResult>(actualResponse);
+            ContentResult? result = Assert.IsType<ContentResult>(actualResponse);
             Assert.Equal(StatusCodes.Status404NotFound, result.StatusCode);
         }
 
@@ -61,28 +57,28 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         [InlineData("ghijk")]
         public async Task Returns_bad_request_given_invalid_hashprefix(string invalidHashPrefix)
         {
-            var mockStorage = new Mock<IStorageService>();
-            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>(), CancellationToken.None)).ReturnsAsync(default(BlobStorageEntry));
+            var mockStorage = new Mock<IFileStorage>();
+            mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), CancellationToken.None)).ReturnsAsync(default(PwnedPasswordsFile));
 
             var function = new Functions.Range(mockStorage.Object, s_nullLogger);
             var context = new DefaultHttpContext();
-            var actualResponse = await function.RunAsync(context.Request, invalidHashPrefix);
+            IActionResult? actualResponse = await function.RunAsync(context.Request, invalidHashPrefix);
 
-            var result = Assert.IsType<ContentResult>(actualResponse);
+            ContentResult? result = Assert.IsType<ContentResult>(actualResponse);
             Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
         }
 
         [Fact]
         public async Task Returns_internal_server_error_when_something_goes_wrong()
         {
-            var mockStorage = new Mock<IStorageService>();
-            mockStorage.Setup(s => s.GetHashesByPrefix(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new Exception());
+            var mockStorage = new Mock<IFileStorage>();
+            mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new Exception());
 
             var function = new Functions.Range(mockStorage.Object, s_nullLogger);
             var context = new DefaultHttpContext();
-            var actualResponse = await function.RunAsync(context.Request, "ABCDE");
+            IActionResult? actualResponse = await function.RunAsync(context.Request, "ABCDE");
 
-            var result = Assert.IsType<ContentResult>(actualResponse);
+            ContentResult? result = Assert.IsType<ContentResult>(actualResponse);
             Assert.Equal(StatusCodes.Status500InternalServerError, result.StatusCode);
         }
     }

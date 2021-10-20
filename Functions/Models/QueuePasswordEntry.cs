@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace HaveIBeenPwned.PwnedPasswords.Models
 {
-    public class AppendQueueItem
+    public class QueuePasswordEntry
     {
         [JsonPropertyName("subscriptionId")]
         public string SubscriptionId { get; set; } = "";

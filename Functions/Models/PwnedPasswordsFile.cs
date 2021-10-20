@@ -1,20 +1,15 @@
 ﻿using System;
 using System.IO;
 
-using Azure;
-
 namespace HaveIBeenPwned.PwnedPasswords.Models
 {
-    /// <summary>
-    /// Blob storage entry
-    /// </summary>
-    public class BlobStorageEntry
+    public readonly struct PwnedPasswordsFile
     {
         public Stream Stream { get; }
         public DateTimeOffset LastModified { get; }
-        public ETag ETag { get; }
+        public string ETag { get; }
 
-        public BlobStorageEntry(Stream stream, DateTimeOffset lastModified, ETag etag)
+        public PwnedPasswordsFile(Stream stream, DateTimeOffset lastModified, string etag)
         {
             Stream = stream;
             LastModified = lastModified;

@@ -26,12 +26,12 @@ namespace HaveIBeenPwned.PwnedPasswords
         internal static IActionResult NotFound(this HttpRequest req) => req.PlainTextResult(StatusCodes.Status404NotFound, "The hash prefix was not found");
 
         /// <summary>
-        /// Returns a <see cref="HttpStatusCode.OK"/> response with the provided <see cref="BlobStorageEntry"/> file contents.
+        /// Returns a <see cref="HttpStatusCode.OK"/> response with the provided <see cref="PwnedPasswordsFile"/> file contents.
         /// </summary>
         /// <param name="req">The <see cref="HttpRequestData"/> request to return the response for.</param>
-        /// <param name="entry">The <see cref="BlobStorageEntry"/> containing the file contents to return.</param>
-        /// <returns>A <see cref="HttpResponseData"/> response containing the contents of the provided <see cref="BlobStorageEntry"/>.</returns>
-        internal static IActionResult File(this HttpRequest req, BlobStorageEntry entry) => new FileStreamResult(entry.Stream, "text/plain") { LastModified = entry.LastModified };
+        /// <param name="entry">The <see cref="PwnedPasswordsFile"/> containing the file contents to return.</param>
+        /// <returns>A <see cref="HttpResponseData"/> response containing the contents of the provided <see cref="PwnedPasswordsFile"/>.</returns>
+        internal static IActionResult File(this HttpRequest req, PwnedPasswordsFile entry) => new FileStreamResult(entry.Stream, "text/plain") { LastModified = entry.LastModified };
 
         /// <summary>
         /// Returns a <see cref="HttpStatusCode.InternalServerError"/> response.
@@ -57,7 +57,7 @@ namespace HaveIBeenPwned.PwnedPasswords
         internal static IActionResult InternalServerError(this HttpRequest req, string contents) => req.PlainTextResult(StatusCodes.Status500InternalServerError, contents);
 
 
-        internal static bool TryValidateEntries(this HttpRequest req, PwnedPasswordAppend[] entries, [NotNullWhen(false)] out IActionResult? errorResponse)
+        internal static bool TryValidateEntries(this HttpRequest req, PwnedPasswordsIngestionValue[] entries, [NotNullWhen(false)] out IActionResult? errorResponse)
         {
             errorResponse = null;
 
