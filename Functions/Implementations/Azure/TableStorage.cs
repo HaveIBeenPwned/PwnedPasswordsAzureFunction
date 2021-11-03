@@ -10,7 +10,6 @@ using HaveIBeenPwned.PwnedPasswords.Abstractions;
 using HaveIBeenPwned.PwnedPasswords.Models;
 
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -68,31 +67,12 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
             }
         }
 
-        public async Task<PwnedPasswordsTransaction> InsertAppendDataAsync(PwnedPasswordsIngestionValue[] data, string subscriptionId, CancellationToken cancellationToken = default)
+        public async Task<PwnedPasswordsTransaction> InsertAppendDataAsync(string subscriptionId, CancellationToken cancellationToken = default)
         {
             await InitializeIfNeededAsync().ConfigureAwait(false);
             var transaction = new PwnedPasswordsTransaction { TransactionId = Guid.NewGuid().ToString() };
             await _transactionTable.AddEntityAsync(new AppendTransactionEntity { PartitionKey = subscriptionId, RowKey = transaction.TransactionId, Confirmed = false }, cancellationToken).ConfigureAwait(false);
             _log.LogInformation("Subscription {SubscriptionId} created a new transaction with id = {TransactionId}.", subscriptionId, transaction.TransactionId);
-
-            var tableTransactions = new List<TableTransactionAction>(100);
-            for (int i = 0; i < data.Length; i++)
-            {
-                PwnedPasswordsIngestionValue item = data[i];
-                tableTransactions.Add(new TableTransactionAction(TableTransactionActionType.Add, new AppendDataEntity { PartitionKey = transaction.TransactionId, RowKey = item.SHA1Hash, NTLMHash = item.NTLMHash, Prevalence = item.Prevalence }));
-                if (tableTransactions.Count == 100)
-                {
-                    await _dataTable.SubmitTransactionAsync(tableTransactions, cancellationToken).ConfigureAwait(false);
-                    tableTransactions.Clear();
-                }
-            }
-
-            if (tableTransactions.Count > 0)
-            {
-                await _dataTable.SubmitTransactionAsync(tableTransactions, cancellationToken).ConfigureAwait(false);
-            }
-
-            _log.LogInformation("Subscription {SubscriptionId} added {NumEntries} entries into transaction {TransactionId}", subscriptionId, data.Length, transaction.TransactionId);
             return transaction;
         }
 

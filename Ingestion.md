@@ -9,14 +9,14 @@ Example JSON document for the passwords `Passw0rd!` and `hunter2` :
 ```json
 [
     {
-        "sha1Hash": "F4A69973E7B0BF9D160F9F60E3C3ACD2494BEB0D",
-        "ntlmHash": "FC525C9683E8FE067095BA2DDC971889",
-        "prevalence": 15
+        "sha1": "F4A69973E7B0BF9D160F9F60E3C3ACD2494BEB0D",
+        "ntlm": "FC525C9683E8FE067095BA2DDC971889",
+        "num": 15
     },
     {
-        "sha1Hash": "25AFF7F4B1BB747833F5175789A1998B31CA4ED4",
-        "ntlmHash": "6608E4BC7B2B7A5F77CE3573570775AF",
-        "prevalence": 25
+        "sha1": "F3BBBD66A63D4BF1747940578EC3D0103530E21D",
+        "ntlm": "6608E4BC7B2B7A5F77CE3573570775AF",
+        "num": 25
     }
 ]
 ```
@@ -31,14 +31,14 @@ Content-Length: 329
 
 [
     {
-        "sha1Hash": "F4a69973E7B0BF9D160F9F60E3C3ACD2494BEB0D",
-        "ntlmHash": "FC525C9683E8FE067095BA2DDC971889",
-        "prevalence": 15
+        "sha1": "F4A69973E7B0BF9D160F9F60E3C3ACD2494BEB0D",
+        "ntlm": "FC525C9683E8FE067095BA2DDC971889",
+        "num": 15
     },
     {
-        "sha1Hash": "25AFF7F4B1BB747833F5175789A1998B31CA4ED4",
-        "ntlmHash": "6608E4BC7B2B7A5F77CE3573570775AF",
-        "prevalence": 25
+        "sha1": "F3BBBD66A63D4BF1747940578EC3D0103530E21D",
+        "ntlm": "6608E4BC7B2B7A5F77CE3573570775AF",
+        "num": 25
     }
 ]
 ```

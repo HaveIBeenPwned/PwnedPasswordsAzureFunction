@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -25,5 +26,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Abstractions
         /// <param name="cancellationToken">A cancellation token to abort the update if signaled.</param>
         /// <returns>True of the file was successfully updated, otherwise false.</returns>
         Task<bool> UpdateHashFileAsync(string hashPrefix, SortedDictionary<string, int> hashes, string etag, CancellationToken cancellationToken = default);
+        Task StoreIngestionFileAsync(string transactionId, Stream ingestionStream, CancellationToken cancellationToken = default);
+        Task<Stream> GetIngestionFileAsync(string transactionId, CancellationToken cancellationToken = default);
     }
 }

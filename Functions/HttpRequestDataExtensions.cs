@@ -1,5 +1,6 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Collections.Generic;
 using System.Net;
+using System.Threading.Tasks;
 
 using HaveIBeenPwned.PwnedPasswords.Models;
 
@@ -57,64 +58,57 @@ namespace HaveIBeenPwned.PwnedPasswords
         internal static IActionResult InternalServerError(this HttpRequest req, string contents) => req.PlainTextResult(StatusCodes.Status500InternalServerError, contents);
 
 
-        internal static bool TryValidateEntries(this HttpRequest req, PwnedPasswordsIngestionValue[] entries, [NotNullWhen(false)] out IActionResult? errorResponse)
+        internal static async Task<(bool Success, IActionResult? Error)> TryValidateEntries(this HttpRequest req, IAsyncEnumerable<PwnedPasswordsIngestionValue?> entries)
         {
-            errorResponse = null;
-
             // First validate the data
             if (entries == null)
             {
                 // Json wasn't parsed from POST body, bad request
-                errorResponse = req.BadRequest("Missing JSON body");
-                return false;
+                return (false, req.BadRequest("Missing JSON body"));
             }
 
-            for (int i = 0; i < entries.Length; i++)
+            int i = 0;
+            await foreach (PwnedPasswordsIngestionValue? entry in entries)
             {
-                if (entries[i] == null)
+                i++;
+                if (entry == null)
                 {
                     // Null item in the array, bad request
-                    errorResponse = req.BadRequest("Null PwnedPassword append entity at " + i);
-                    return false;
+                    return (false, req.BadRequest("Null PwnedPassword append entity at " + i));
                 }
 
-                if (string.IsNullOrEmpty(entries[i].SHA1Hash))
+                if (string.IsNullOrEmpty(entry.SHA1Hash))
                 {
                     // Empty SHA-1 hash, bad request
-                    errorResponse = req.BadRequest("Missing SHA-1 hash for item at index " + i);
-                    return false;
+                    return (false, req.BadRequest("Missing SHA-1 hash for item at index " + i));
                 }
 
-                if (!entries[i].SHA1Hash.IsStringSHA1Hash())
+                if (!entry.SHA1Hash.IsStringSHA1Hash())
                 {
                     // Invalid SHA-1 hash, bad request
-                    errorResponse = req.BadRequest("The SHA-1 hash was not in a valid format for item at index " + i);
-                    return false;
+                    return (false, req.BadRequest("The SHA-1 hash was not in a valid format for item at index " + i));
                 }
 
-                if (string.IsNullOrEmpty(entries[i].NTLMHash))
+                if (string.IsNullOrEmpty(entry.NTLMHash))
                 {
                     // Empty NTLM hash, bad request
-                    errorResponse = req.BadRequest("Missing NTLM hash for item at index " + i);
-                    return false;
+                    return (false, req.BadRequest("Missing NTLM hash for item at index " + i));
                 }
 
-                if (!entries[i].NTLMHash.IsStringNTLMHash())
+                if (!entry.NTLMHash.IsStringNTLMHash())
                 {
                     // Invalid NTLM hash, bad request
-                    errorResponse = req.BadRequest("The NTLM has was not in a valid format at index " + i);
-                    return false;
+                    return (false, req.BadRequest("The NTLM has was not in a valid format at index " + i));
                 }
 
-                if (entries[i].Prevalence <= 0)
+                if (entry.Prevalence <= 0)
                 {
                     // Prevalence not set or invalid value, bad request
-                    errorResponse = req.BadRequest("Missing or invalid prevalence value for item at index " + i);
-                    return false;
+                    return (false, req.BadRequest("Missing or invalid prevalence value for item at index " + i));
                 }
             }
 
-            return true;
+            return (true, null);
         }
 
         private static IActionResult PlainTextResult(this HttpRequest _, int statusCode, string content) => new ContentResult { StatusCode = statusCode, Content = content, ContentType = "text/plain" };
