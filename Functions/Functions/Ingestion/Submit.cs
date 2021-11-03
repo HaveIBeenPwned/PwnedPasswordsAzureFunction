@@ -70,12 +70,14 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
                     return new OkObjectResult(transaction);
                 }
 
+#pragma warning disable CS8603 // Won't be null if Success=false.
                 return Error;
+#pragma warning restore CS8603 // Possible null reference return.
             }
             catch (JsonException e)
             {
                 // Error occurred trying to deserialize the JSON payload.
-                _log.LogError(e, "Unable to parson JSON for subscription {SubscriptionId}", subscriptionId);
+                _log.LogError(e, "Unable to parse JSON for subscription {SubscriptionId}", subscriptionId);
                 return req.BadRequest($"Unable to parse JSON: {e.Message}");
             }
         }

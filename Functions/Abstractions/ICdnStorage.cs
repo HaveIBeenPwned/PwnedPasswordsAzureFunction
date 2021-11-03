@@ -9,6 +9,12 @@ namespace HaveIBeenPwned.PwnedPasswords.Abstractions
 {
     public interface ICdnStorage
     {
+        /// <summary>
+        /// Purges the provided list of hash prefixes from the CDN cache.
+        /// </summary>
+        /// <param name="hashPrefixes">The list of hash prefixes to purge.</param>
+        /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+        /// <returns>An awaitable <see cref="Task"/></returns>
         Task PurgeFilesAsync(List<string> hashPrefixes, CancellationToken cancellationToken = default);
     }
 }

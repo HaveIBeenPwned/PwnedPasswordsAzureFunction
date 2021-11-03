@@ -29,7 +29,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
             var mockStorage = new Mock<IFileStorage>();
             mockStorage.Setup(s => s.GetHashFileAsync(validHashPrefix, CancellationToken.None)).ReturnsAsync(returnHashFile);
 
-            var function = new Functions.Range(mockStorage.Object, s_nullLogger);
+            var function = new Functions.Range(s_nullLogger, mockStorage.Object);
             var context = new DefaultHttpContext();
             IActionResult? actualResponse = await function.RunAsync(context.Request, validHashPrefix);
 
@@ -42,7 +42,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
             var mockStorage = new Mock<IFileStorage>();
             mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new FileNotFoundException());
 
-            var function = new Functions.Range(mockStorage.Object, s_nullLogger);
+            var function = new Functions.Range(s_nullLogger, mockStorage.Object);
             var context = new DefaultHttpContext();
             IActionResult? actualResponse = await function.RunAsync(context.Request, "ABCDE");
 
@@ -60,7 +60,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
             var mockStorage = new Mock<IFileStorage>();
             mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), CancellationToken.None)).ReturnsAsync(default(PwnedPasswordsFile));
 
-            var function = new Functions.Range(mockStorage.Object, s_nullLogger);
+            var function = new Functions.Range(s_nullLogger, mockStorage.Object);
             var context = new DefaultHttpContext();
             IActionResult? actualResponse = await function.RunAsync(context.Request, invalidHashPrefix);
 
@@ -74,7 +74,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
             var mockStorage = new Mock<IFileStorage>();
             mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new Exception());
 
-            var function = new Functions.Range(mockStorage.Object, s_nullLogger);
+            var function = new Functions.Range(s_nullLogger, mockStorage.Object);
             var context = new DefaultHttpContext();
             IActionResult? actualResponse = await function.RunAsync(context.Request, "ABCDE");
 

@@ -17,13 +17,13 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
         private readonly ILogger _log;
         private readonly QueueClient _queueClient;
         private readonly QueueClient _transactionQueueClient;
-        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1);
+        private readonly SemaphoreSlim _semaphore = new(1);
         private volatile bool _initialized;
 
         public QueueStorage(IOptions<QueueStorageOptions> storageQueueOptions, ILogger<QueueStorage> log)
         {
             _log = log;
-            QueueClientOptions options = new QueueClientOptions { MessageEncoding = QueueMessageEncoding.Base64 };
+            QueueClientOptions options = new() { MessageEncoding = QueueMessageEncoding.Base64 };
             _queueClient = new QueueClient(storageQueueOptions.Value.ConnectionString, $"{storageQueueOptions.Value.Namespace}-ingestion", options);
             _transactionQueueClient = new QueueClient(storageQueueOptions.Value.ConnectionString, $"{storageQueueOptions.Value.Namespace}-transaction", options);
         }
