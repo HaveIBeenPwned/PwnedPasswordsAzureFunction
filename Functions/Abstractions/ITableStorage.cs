@@ -11,7 +11,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Abstractions
 {
     public interface ITableStorage
     {
-        Task<PwnedPasswordsTransaction> InsertAppendDataAsync(PwnedPasswordsIngestionValue[] data, string subscriptionId, CancellationToken cancellationToken = default);
+        Task<PwnedPasswordsTransaction> InsertAppendDataAsync(string subscriptionId, CancellationToken cancellationToken = default);
         Task<bool> IsTransactionConfirmedAsync(string subscriptionId, string transactionId, CancellationToken cancellationToken = default);
         Task<List<PwnedPasswordsIngestionValue>> GetTransactionValuesAsync(string subscriptionId, string transactionId, CancellationToken cancellationToken = default);
         Task<bool> ConfirmAppendDataAsync(string subscriptionId, PwnedPasswordsTransaction transaction, CancellationToken cancellationToken = default);

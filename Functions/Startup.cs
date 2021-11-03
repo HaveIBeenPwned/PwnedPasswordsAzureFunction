@@ -1,6 +1,4 @@
-﻿
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 using HaveIBeenPwned.PwnedPasswords;
 using HaveIBeenPwned.PwnedPasswords.Abstractions;
@@ -10,7 +8,6 @@ using HaveIBeenPwned.PwnedPasswords.Implementations.Cloudflare;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 [assembly: FunctionsStartup(typeof(Startup))]
 namespace HaveIBeenPwned.PwnedPasswords

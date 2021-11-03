@@ -7,11 +7,11 @@ namespace HaveIBeenPwned.PwnedPasswords.Models
 {
     public class PwnedPasswordsIngestionValue
     {
-        [JsonPropertyName("sha1Hash")]
+        [JsonPropertyName("sha1")]
         public string SHA1Hash { get; set; } = "";
-        [JsonPropertyName("ntlmHash")]
+        [JsonPropertyName("ntlm")]
         public string NTLMHash { get; set; } = "";
-        [JsonPropertyName("prevalence")]
+        [JsonPropertyName("num")]
         public int Prevalence { get; set; }
     }
 }

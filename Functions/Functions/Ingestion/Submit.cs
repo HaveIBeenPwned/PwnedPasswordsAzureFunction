@@ -22,15 +22,17 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
         private const string SubscriptionIdHeaderKey = "Api-Subscription-Id";
         private readonly ILogger<Submit> _log;
         private readonly ITableStorage _tableStorage;
+        private readonly IFileStorage _fileStorage;
 
         /// <summary>
         /// Pwned Passwords - Append handler
         /// </summary>
         /// <param name="blobStorage">The Blob storage</param>
-        public Submit(ILogger<Submit> log, ITableStorage tableStorage)
+        public Submit(ILogger<Submit> log, ITableStorage tableStorage, IFileStorage fileStorage)
         {
             _log = log;
             _tableStorage = tableStorage;
+            _fileStorage = fileStorage;
         }
 
         /// <summary>
@@ -58,20 +60,17 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
             Activity.Current?.AddTag("SubscriptionId", subscriptionId);
             try
             {
-                PwnedPasswordsIngestionValue[] data = await JsonSerializer.DeserializeAsync<PwnedPasswordsIngestionValue[]>(req.Body);
-                if (data != null)
+                (bool Success, IActionResult? Error) = await req.TryValidateEntries(JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(req.Body));
+                if (Success)
                 {
-                    if (req.TryValidateEntries(data, out IActionResult? errorResponse))
-                    {
-                        // Now insert the data
-                        PwnedPasswordsTransaction transaction = await _tableStorage.InsertAppendDataAsync(data, subscriptionId);
-                        return new OkObjectResult(transaction);
-                    }
-
-                    return errorResponse;
+                    // Now insert the data
+                    req.Body.Seek(0, System.IO.SeekOrigin.Begin);
+                    PwnedPasswordsTransaction? transaction = await _tableStorage.InsertAppendDataAsync(subscriptionId).ConfigureAwait(false);
+                    await _fileStorage.StoreIngestionFileAsync(transaction.TransactionId, req.Body).ConfigureAwait(false);
+                    return new OkObjectResult(transaction);
                 }
 
-                return req.BadRequest("No content provided.");
+                return Error;
             }
             catch (JsonException e)
             {

@@ -22,6 +22,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
     public class BlobStorage : IFileStorage
     {
         private readonly BlobContainerClient _blobContainerClient;
+        private readonly BlobContainerClient _ingestionContainerClient;
         private readonly ILogger _log;
 
         /// <summary>
@@ -37,6 +38,20 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
             _log = log;
             var serviceClient = new BlobServiceClient(storageOptions.ConnectionString);
             _blobContainerClient = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName);
+            _ingestionContainerClient = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName + "ingestion");
+        }
+
+        public async Task StoreIngestionFileAsync(string transactionId, Stream ingestionStream, CancellationToken cancellationToken = default)
+        {
+            await _ingestionContainerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            await _ingestionContainerClient.UploadBlobAsync(transactionId, ingestionStream, cancellationToken);
+        }
+
+        public async Task<Stream> GetIngestionFileAsync(string transactionId, CancellationToken cancellationToken = default)
+        {
+            await _ingestionContainerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            Response<BlobDownloadStreamingResult>? result = await _ingestionContainerClient.GetBlobClient(transactionId).DownloadStreamingAsync(cancellationToken: cancellationToken);
+            return result.Value.Content;
         }
 
         public async Task<PwnedPasswordsFile> GetHashFileAsync(string hashPrefix, CancellationToken cancellationToken = default)
