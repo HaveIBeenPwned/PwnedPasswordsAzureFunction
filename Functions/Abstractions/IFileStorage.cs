@@ -26,7 +26,22 @@ namespace HaveIBeenPwned.PwnedPasswords.Abstractions
         /// <param name="cancellationToken">A cancellation token to abort the update if signaled.</param>
         /// <returns>True of the file was successfully updated, otherwise false.</returns>
         Task<bool> UpdateHashFileAsync(string hashPrefix, SortedDictionary<string, int> hashes, string etag, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Stores a validated ingestion file and associates it with a transaction to be processed when the transaction is confirmed.
+        /// </summary>
+        /// <param name="transactionId">The transaction id to associate with the ingestion file.</param>
+        /// <param name="ingestionStream">A <see cref="Stream"/> containing the contents of the ingestion file.</param>
+        /// <param name="cancellationToken">A cancellation token to abort if signaled.</param>
+        /// <returns>An awaitable <see cref="Task"/></returns>
         Task StoreIngestionFileAsync(string transactionId, Stream ingestionStream, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Retrieves an ingestion file for the specified transaction id.
+        /// </summary>
+        /// <param name="transactionId">The transaction id associated with the ingestion file.</param>
+        /// <param name="cancellationToken">A cancellation token to abort if signaled.</param>
+        /// <returns>A <see cref="Stream"/> containing the contents of the ingestion file.</returns>
         Task<Stream> GetIngestionFileAsync(string transactionId, CancellationToken cancellationToken = default);
     }
 }

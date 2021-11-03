@@ -32,7 +32,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
         private readonly TableClient _cachePurgeTable;
         private readonly ILogger _log;
         private volatile bool _initialized = false;
-        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1);
+        private readonly SemaphoreSlim _semaphore = new(1);
 
         public TableStorage(IOptions<TableStorageOptions> options, ILogger<TableStorage> log)
         {
@@ -95,11 +95,11 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
             }
             catch (RequestFailedException e) when (e.Status == 404)
             {
-                throw new ArgumentOutOfRangeException(nameof(transaction), e);
+                throw new ArgumentOutOfRangeException("Transaction id not found.", e);
             }
             catch (RequestFailedException e) when (e.Status == StatusCodes.Status409Conflict)
             {
-                throw new ArgumentException(nameof(transaction), e);
+                throw new ArgumentException("Transaciton has already been updated.", e);
             }
             catch (RequestFailedException e)
             {

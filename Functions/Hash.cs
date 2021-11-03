@@ -11,7 +11,7 @@ namespace HaveIBeenPwned.PwnedPasswords
     /// </summary>
     public static class Hash
     {
-        private static readonly ThreadLocal<SHA1> s_sha1 = new ThreadLocal<SHA1>(SHA1.Create);
+        private static readonly ThreadLocal<SHA1> s_sha1 = new(SHA1.Create);
         private static SHA1 SHA1Hasher => s_sha1?.Value ?? SHA1.Create();
         private static readonly char[] s_hexChars = new[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
