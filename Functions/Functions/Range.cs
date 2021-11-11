@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 using HaveIBeenPwned.PwnedPasswords.Abstractions;
@@ -18,17 +19,17 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
     /// </summary>
     public class Range
     {
-        private readonly IFileStorage _blobStorage;
         private readonly ILogger<Range> _log;
+        private readonly IFileStorage _fileStorage;
 
         /// <summary>
         /// Pwned Passwords - Range handler
         /// </summary>
-        /// <param name="blobStorage">The Blob storage</param>
-        public Range(IFileStorage blobStorage, ILogger<Range> log)
+        /// <param name="fileStorage">The file storage</param>
+        public Range(ILogger<Range> log, IFileStorage fileStorage)
         {
-            _blobStorage = blobStorage;
             _log = log;
+            _fileStorage = fileStorage;
         }
 
         /// <summary>
@@ -39,7 +40,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
         /// <param name="log">Logger instance to emit diagnostic information to</param>
         /// <returns></returns>
         [FunctionName("Range-GET")]
-        public async Task<IActionResult> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequest req, string hashPrefix)
+        public async Task<IActionResult> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequest req, string hashPrefix, CancellationToken cancellationToken = default)
         {
             if (!hashPrefix.IsHexStringOfLength(5))
             {
@@ -48,8 +49,8 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
 
             try
             {
-                PwnedPasswordsFile entry = await _blobStorage.GetHashFileAsync(hashPrefix.ToUpper());
-                return req.File(entry);
+                PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), cancellationToken);
+                return new FileStreamResult(entry.Stream, "text/plain") { LastModified = entry.LastModified };
             }
             catch (FileNotFoundException)
             {

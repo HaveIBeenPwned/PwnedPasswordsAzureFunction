@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,8 +12,6 @@ namespace HaveIBeenPwned.PwnedPasswords
     /// </summary>
     public static class Hash
     {
-        private static readonly ThreadLocal<SHA1> s_sha1 = new ThreadLocal<SHA1>(SHA1.Create);
-        private static SHA1 SHA1Hasher => s_sha1?.Value ?? SHA1.Create();
         private static readonly char[] s_hexChars = new[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
         /// <summary>
@@ -24,9 +23,28 @@ namespace HaveIBeenPwned.PwnedPasswords
         public static string CreateSHA1Hash(this string input, string source = "UTF8")
         {
             Encoding encoding = source == "UTF8" ? Encoding.UTF8 : Encoding.Unicode;
-            Span<char> hashChars = stackalloc char[40];
-            byte[] hash = SHA1Hasher.ComputeHash(encoding.GetBytes(input));
-            for (int i = 0; i < 20; i++)
+            Span<byte> destination = stackalloc byte[20];
+            int numBytesRequired = Encoding.UTF8.GetByteCount(input);
+            using IMemoryOwner<byte> array = MemoryPool<byte>.Shared.Rent(numBytesRequired);
+            int numBytesUsed = encoding.GetBytes(input, array.Memory.Span);
+            SHA1.HashData(array.Memory.Span[..numBytesUsed], destination);
+            return ConvertToHex(destination);
+        }
+
+        public static string CreateNTLMHash(string key)
+        {
+            Span<byte> ntlmHash = stackalloc byte[16];
+            int numBytesRequired = Encoding.Unicode.GetByteCount(key);
+            using IMemoryOwner<byte> array = MemoryPool<byte>.Shared.Rent(numBytesRequired);
+            int numBytesUsed = Encoding.Unicode.GetBytes(key, array.Memory.Span);
+            MD4.HashData(array.Memory.Span[..numBytesUsed], ntlmHash);
+            return ConvertToHex(ntlmHash);
+        }
+
+        private static string ConvertToHex(ReadOnlySpan<byte> hash)
+        {
+            Span<char> hashChars = stackalloc char[hash.Length * 2];
+            for (int i = 0; i < hash.Length; i++)
             {
                 int hashIndex = i * 2;
                 byte x = hash[i];
