@@ -25,6 +25,15 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         }
 
         [Theory]
+        [InlineData("Passw0rd!", "FC525C9683E8FE067095BA2DDC971889")]
+        [InlineData("hunter2", "6608E4BC7B2B7A5F77CE3573570775AF")]
+        [InlineData("ThisIsAReallyLongPasswordThatShouldRequireMoreThanSixtyFourBytesToHashProperlyButShouldStillWork", "1AECCB344D30AB6DFA13A5CA7FB75C18")]
+        public void CreateNTLMHash(string input, string expected)
+        {
+            Assert.Equal(expected, Hash.CreateNTLMHash(input));
+        }
+
+        [Theory]
         [InlineData("", 0, false)]
         [InlineData("01", 2, true)]
         [InlineData("aB", 2, true)]
