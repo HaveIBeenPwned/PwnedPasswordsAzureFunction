@@ -4,6 +4,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -35,7 +37,19 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
         }
 
         [FunctionName("ProcessAppendQueueItem")]
-        public async Task Run([QueueTrigger("%TableNamespace%-ingestion", Connection = "PwnedPasswordsConnectionString")] QueuePasswordEntry item, CancellationToken cancellationToken)
+        public async Task Run([QueueTrigger("%TableNamespace%-ingestion", Connection = "PwnedPasswordsConnectionString")] byte[] queueItem, CancellationToken cancellationToken)
+        {
+            var items = JsonSerializer.Deserialize<QueuePasswordEntry[]>(Encoding.UTF8.GetString(queueItem));
+            if (items != null)
+            {
+                foreach (QueuePasswordEntry item in items)
+                {
+                    await ProcessPasswordEntry(item, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+
+        private async Task ProcessPasswordEntry(QueuePasswordEntry item, CancellationToken cancellationToken)
         {
             // Let's set some activity tags and log scopes so we have event correlation in our logs!
             Activity.Current?.AddTag("SubscriptionId", item.SubscriptionId).AddTag("TransactionId", item.TransactionId);

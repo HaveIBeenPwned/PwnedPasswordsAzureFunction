@@ -57,7 +57,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
                 PwnedPasswordsTransaction? data = await JsonSerializer.DeserializeAsync<PwnedPasswordsTransaction>(req.Body).ConfigureAwait(false);
                 if (data != null && !string.IsNullOrEmpty(data.TransactionId))
                 {
-                    Activity.Current?.AddTag("TransactionId", subscriptionId);
+                    Activity.Current?.AddTag("TransactionId", data.TransactionId);
                     if (await _tableStorage.ConfirmAppendDataAsync(subscriptionId, data))
                     {
                         await _queueStorage.PushTransactionAsync(new QueueTransactionEntry { SubscriptionId = subscriptionId, TransactionId = data.TransactionId });
