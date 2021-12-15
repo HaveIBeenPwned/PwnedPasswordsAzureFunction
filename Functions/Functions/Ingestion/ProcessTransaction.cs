@@ -2,8 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,8 +38,10 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
         }
 
         [FunctionName("ProcessTransactionQueueItem")]
-        public async Task Run([QueueTrigger("%TableNamespace%-transaction", Connection = "PwnedPasswordsConnectionString")] QueueTransactionEntry item, CancellationToken cancellationToken)
+        public async Task Run([QueueTrigger("%TableNamespace%-transaction", Connection = "PwnedPasswordsConnectionString")] byte[] queueItem, CancellationToken cancellationToken)
         {
+
+            QueueTransactionEntry item = JsonSerializer.Deserialize<QueueTransactionEntry>(Encoding.UTF8.GetString(queueItem));
             Activity.Current?.AddTag("SubscriptionId", item.SubscriptionId).AddTag("TransactionId", item.TransactionId);
             try
             {
@@ -46,13 +50,23 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
                     _log.LogInformation("Subscription {SubscriptionId} started processing for transaction {TransactionId}. Fetching transaction entries.", item.SubscriptionId, item.TransactionId);
                     using (Stream stream = await _fileStorage.GetIngestionFileAsync(item.TransactionId, cancellationToken).ConfigureAwait(false))
                     {
+                        List<QueuePasswordEntry> entries = new List<QueuePasswordEntry>(100);
                         await foreach (PwnedPasswordsIngestionValue? entry in JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(stream, cancellationToken: cancellationToken))
                         {
                             if (entry != null)
                             {
-                                var queueEntry = new QueuePasswordEntry { SubscriptionId = item.SubscriptionId, TransactionId = item.TransactionId, SHA1Hash = entry.SHA1Hash, NTLMHash = entry.NTLMHash, Prevalence = entry.Prevalence };
-                                await _queueStorage.PushPasswordAsync(queueEntry, cancellationToken).ConfigureAwait(false);
+                                entries.Add(new QueuePasswordEntry { SubscriptionId = item.SubscriptionId, TransactionId = item.TransactionId, SHA1Hash = entry.SHA1Hash.ToUpperInvariant(), NTLMHash = entry.NTLMHash.ToUpperInvariant(), Prevalence = entry.Prevalence });
+                                if (entries.Count == 100)
+                                {
+                                    await _queueStorage.PushPasswordsAsync(entries, cancellationToken).ConfigureAwait(false);
+                                    entries.Clear();
+                                }
                             }
+                        }
+
+                        if (entries.Count > 0)
+                        {
+                            await _queueStorage.PushPasswordsAsync(entries, cancellationToken).ConfigureAwait(false);
                         }
                     }
                 }

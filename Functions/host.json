@@ -16,8 +16,7 @@
             "visibilityTimeout": "00:00:00",
             "batchSize": 32,
             "maxDequeueCount": 5,
-            "newBatchThreshold": 16,
-            "messageEncoding": "none"
+            "newBatchThreshold": 16
         }
     },
     "logging": {

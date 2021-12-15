@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -39,11 +40,14 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
         /// Push a append job to the queue
         /// </summary>
         /// <param name="append">The append request to push to the queue</param>
-        public async Task PushPasswordAsync(QueuePasswordEntry entry, CancellationToken cancellationToken = default)
+        public async Task PushPasswordsAsync(List<QueuePasswordEntry> entries, CancellationToken cancellationToken = default)
         {
             await InitializeIfNeeded().ConfigureAwait(false);
-            await _queueClient.SendMessageAsync(JsonSerializer.Serialize(entry), cancellationToken).ConfigureAwait(false);
-            _log.LogInformation("Subscription {SubscriptionId} successfully queued SHA1 hash {SHA1} as part af transaction {TransactionId}", entry.SubscriptionId, entry.SHA1Hash, entry.TransactionId);
+            await _queueClient.SendMessageAsync(JsonSerializer.Serialize(entries), cancellationToken).ConfigureAwait(false);
+            foreach (var entry in entries)
+            {
+                _log.LogInformation("Subscription {SubscriptionId} successfully queued SHA1 hash {SHA1} as part af transaction {TransactionId}", entry.SubscriptionId, entry.SHA1Hash, entry.TransactionId);
+            }
         }
 
         private async Task InitializeIfNeeded()
