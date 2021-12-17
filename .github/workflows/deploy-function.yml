@@ -1,4 +1,4 @@
-name: Deploy PwnedPasswords function to Azure
+name: Deploy Azure function to Azure Function App
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ on:
 #
 # 2. Change these variables for your configuration:
 env:
-  AZURE_FUNCTIONAPP_NAME: PwnedPasswordsOSS
+  AZURE_FUNCTIONAPP_NAME: pwnedpasswordsoss-dev
   AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
 
 jobs:
@@ -22,10 +22,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     
-    - name: Setup .NET 5.0
+    - name: Setup .NET 6.0
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: 5.0.x
+        dotnet-version: 6.0.x
     
     - name: Setup .NET Core 3.1
       uses: actions/setup-dotnet@v1
@@ -41,4 +41,3 @@ jobs:
         app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
         package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
         publish-profile: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
-

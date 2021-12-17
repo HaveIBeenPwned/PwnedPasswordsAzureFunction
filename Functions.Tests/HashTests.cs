@@ -1,6 +1,7 @@
-﻿using Xunit;
+﻿
+using Xunit;
 
-namespace Functions.Tests
+namespace HaveIBeenPwned.PwnedPasswords.Tests
 {
     public class HashTests
     {
@@ -24,6 +25,15 @@ namespace Functions.Tests
         }
 
         [Theory]
+        [InlineData("Passw0rd!", "FC525C9683E8FE067095BA2DDC971889")]
+        [InlineData("hunter2", "6608E4BC7B2B7A5F77CE3573570775AF")]
+        [InlineData("ThisIsAReallyLongPasswordThatShouldRequireMoreThanSixtyFourBytesToHashProperlyButShouldStillWork", "1AECCB344D30AB6DFA13A5CA7FB75C18")]
+        public void CreateNTLMHash(string input, string expected)
+        {
+            Assert.Equal(expected, Hash.CreateNTLMHash(input));
+        }
+
+        [Theory]
         [InlineData("", 0, false)]
         [InlineData("01", 2, true)]
         [InlineData("aB", 2, true)]
@@ -42,10 +52,24 @@ namespace Functions.Tests
         [InlineData("f3bbBD66A63D4BF1747940578EC3D0103530E21D", true)]
         [InlineData("G3BBBD66A63D4BF1747940578EC3D0103530E21D", false)]
         [InlineData("F3BBBD66A63D4BF1747940578EC3D0103530E21DAA", false)]
+        [InlineData("31D6CFE0D16AE931B73C59D7E0C089C0", false)]
         [InlineData("", false)]
         public void IsSHA1Hash(string input, bool expected)
         {
-            Assert.Equal(expected, Hash.IsStringSHA1Hash(input));
+            Assert.Equal(expected, input.IsStringSHA1Hash());
+        }
+
+        [Theory]
+        [InlineData("31d6cfe0d16ae931b73c59d7e0c089c0", true)]
+        [InlineData("31D6CFE0D16AE931B73C59D7E0C089C0", true)]
+        [InlineData("31D6CFE0D16AE931B73C59D7E0C089C0A", false)]
+        [InlineData("G1D6CFE0D16AE931B73C59D7E0C089C0", false)]
+        [InlineData("31D6CFE0D16AE931B73C59D7E0C089C", false)]
+        [InlineData("F4A69973E7B0BF9D160F9F60E3C3ACD2494BEB0D", false)]
+        [InlineData("", false)]
+        public void IsNTLMHash(string input, bool expected)
+        {
+            Assert.Equal(expected, input.IsStringNTLMHash());
         }
     }
 }
