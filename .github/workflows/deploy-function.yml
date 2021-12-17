@@ -2,7 +2,7 @@ name: Deploy DotNet project to Azure Function App
 
 on:
   workflow_dispatch:
-    branches: [ main, deployaction ]
+    branches: [ main ]
 
 # CONFIGURATION
 # For help, go to https://github.com/Azure/Actions
@@ -12,8 +12,8 @@ on:
 #
 # 2. Change these variables for your configuration:
 env:
-  AZURE_FUNCTIONAPP_NAME: pwnedpasswordsoss-dev # set this to your application's name
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'           # set this to the path to your web app project, defaults to the repository root
+  AZURE_FUNCTIONAPP_NAME: pwnedpasswordsoss-dev
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
 
 jobs:
   build-and-deploy:
