@@ -62,7 +62,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
             try
             {
                 Response<BlobDownloadResult> response = await blobClient.DownloadContentAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-                return new PwnedPasswordsFile(response.Value.Content.ToStream(), response.Value.Details.LastModified, response.Value.Details.ETag.ToString());
+                return new PwnedPasswordsFile(response.Value.Content.ToArray(), response.Value.Details.LastModified, response.Value.Details.ETag.ToString());
             }
             catch (RequestFailedException ex) when (ex.Status == 404)
             {

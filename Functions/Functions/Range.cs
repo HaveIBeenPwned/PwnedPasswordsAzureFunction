@@ -50,7 +50,8 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions
             try
             {
                 PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), cancellationToken);
-                return new FileStreamResult(entry.Stream, "text/plain") { LastModified = entry.LastModified };
+
+                return new FileContentResult(entry.Content, "text/plain") { LastModified = entry.LastModified };
             }
             catch (FileNotFoundException)
             {
