@@ -88,7 +88,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
             PwnedPasswordsFile blobFile = await _blobStorage.GetHashFileAsync(prefix, cancellationToken).ConfigureAwait(false);
 
             // Let's read the existing blob into a sorted dictionary so we can write it back in order!
-            SortedDictionary<string, int> hashes = await ParseHashFile(blobFile).ConfigureAwait(false);
+            SortedDictionary<string, int> hashes = ParseHashFile(blobFile);
 
             // We now have a sorted dictionary with the hashes for this prefix.
             // Let's add or update the suffix with the prevalence count.
@@ -107,21 +107,18 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
             return await _blobStorage.UpdateHashFileAsync(prefix, hashes, blobFile.ETag, cancellationToken).ConfigureAwait(false);
         }
 
-        private static async Task<SortedDictionary<string, int>> ParseHashFile(PwnedPasswordsFile blobFile)
+        private static SortedDictionary<string, int> ParseHashFile(PwnedPasswordsFile blobFile)
         {
             var hashes = new SortedDictionary<string, int>();
-            using (blobFile.Stream)
+            using (var reader = new StringReader(Encoding.UTF8.GetString(blobFile.Content)))
             {
-                using (var reader = new StreamReader(blobFile.Stream))
+                string? hashLine = reader.ReadLine();
+                while (hashLine != null)
                 {
-                    while (!reader.EndOfStream)
+                    // Let's make sure we can parse this as a proper hash!
+                    if (!string.IsNullOrEmpty(hashLine) && hashLine.Length >= 37 && hashLine[35] == ':' && int.TryParse(hashLine[36..], out int currentPrevalence))
                     {
-                        string? hashLine = await reader.ReadLineAsync().ConfigureAwait(false);
-                        // Let's make sure we can parse this as a proper hash!
-                        if (!string.IsNullOrEmpty(hashLine) && hashLine.Length >= 37 && hashLine[35] == ':' && int.TryParse(hashLine[36..], out int currentPrevalence))
-                        {
-                            hashes.Add(hashLine[..35], currentPrevalence);
-                        }
+                        hashes.Add(hashLine[..35], currentPrevalence);
                     }
                 }
             }
