@@ -33,7 +33,7 @@ jobs:
         dotnet-version: 3.1.x
     
     - name: Build Function
-      run: dotnet build --configuration Release --output ./output
+      run: dotnet build ./Functions/HaveIBeenPwned.PwnedPasswords.csproj --configuration Release --output ./output
 
     - name: Deploy Function to Azure
       uses: Azure/functions-action@v1.3.1
