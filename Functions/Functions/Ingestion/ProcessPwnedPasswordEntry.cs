@@ -110,7 +110,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
         private static SortedDictionary<string, int> ParseHashFile(PwnedPasswordsFile blobFile)
         {
             var hashes = new SortedDictionary<string, int>();
-            using (var reader = new StringReader(Encoding.UTF8.GetString(blobFile.Content)))
+            using (var reader = new StreamReader(blobFile.Content))
             {
                 string? hashLine = reader.ReadLine();
                 while (hashLine != null)

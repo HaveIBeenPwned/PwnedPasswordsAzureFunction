@@ -13,6 +13,7 @@ using HaveIBeenPwned.PwnedPasswords.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.IO;
 
 namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
 {
@@ -24,6 +25,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
         private readonly BlobContainerClient _blobContainerClient;
         private readonly BlobContainerClient _ingestionContainerClient;
         private readonly ILogger _log;
+        private static RecyclableMemoryStreamManager s_manager = new RecyclableMemoryStreamManager(RecyclableMemoryStreamManager.DefaultBlockSize, RecyclableMemoryStreamManager.DefaultLargeBufferMultiple, RecyclableMemoryStreamManager.DefaultMaximumBufferSize);
 
         /// <summary>
         /// Create a new Blob storage access instance
@@ -61,8 +63,14 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
 
             try
             {
-                Response<BlobDownloadResult> response = await blobClient.DownloadContentAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-                return new PwnedPasswordsFile(response.Value.Content.ToArray(), response.Value.Details.LastModified, response.Value.Details.ETag.ToString());
+                var recyclableStream = s_manager.GetStream();
+                Response<BlobDownloadStreamingResult> response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+                using(response.Value.Content)
+                {
+                    await response.Value.Content.CopyToAsync(recyclableStream, cancellationToken).ConfigureAwait(false);
+                    recyclableStream.Seek(0, SeekOrigin.Begin);
+                    return new PwnedPasswordsFile(recyclableStream, response.Value.Details.LastModified, response.Value.Details.ETag.ToString());
+                }
             }
             catch (RequestFailedException ex) when (ex.Status == 404)
             {
