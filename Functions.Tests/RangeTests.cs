@@ -25,7 +25,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         public async Task Returns_ok_given_valid_hashprefix()
         {
             string validHashPrefix = "ABCDE";
-            var returnHashFile = new PwnedPasswordsFile(Array.Empty<byte>(), DateTimeOffset.UtcNow, "*");
+            var returnHashFile = new PwnedPasswordsFile(Stream.Null, DateTimeOffset.UtcNow, "*");
             var mockStorage = new Mock<IFileStorage>();
             mockStorage.Setup(s => s.GetHashFileAsync(validHashPrefix, CancellationToken.None)).ReturnsAsync(returnHashFile);
 
@@ -33,7 +33,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
             var context = new DefaultHttpContext();
             IActionResult? actualResponse = await function.RunAsync(context.Request, validHashPrefix);
 
-            Assert.IsType<FileContentResult>(actualResponse);
+            Assert.IsType<FileStreamResult>(actualResponse);
         }
 
         [Fact]
