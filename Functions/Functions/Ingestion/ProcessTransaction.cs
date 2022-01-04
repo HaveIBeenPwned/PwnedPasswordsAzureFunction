@@ -41,7 +41,12 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
         public async Task Run([QueueTrigger("%TableNamespace%-transaction", Connection = "PwnedPasswordsConnectionString")] byte[] queueItem, CancellationToken cancellationToken)
         {
 
-            QueueTransactionEntry item = JsonSerializer.Deserialize<QueueTransactionEntry>(Encoding.UTF8.GetString(queueItem));
+            QueueTransactionEntry? item = JsonSerializer.Deserialize<QueueTransactionEntry>(Encoding.UTF8.GetString(queueItem));
+            if (item == null)
+            {
+                throw new ArgumentException("Queue item contains no data.", nameof(queueItem));
+            }
+
             Activity.Current?.AddTag("SubscriptionId", item.SubscriptionId).AddTag("TransactionId", item.TransactionId);
             try
             {
@@ -50,7 +55,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion
                     _log.LogInformation("Subscription {SubscriptionId} started processing for transaction {TransactionId}. Fetching transaction entries.", item.SubscriptionId, item.TransactionId);
                     using (Stream stream = await _fileStorage.GetIngestionFileAsync(item.TransactionId, cancellationToken).ConfigureAwait(false))
                     {
-                        List<QueuePasswordEntry> entries = new List<QueuePasswordEntry>(100);
+                        var entries = new List<QueuePasswordEntry>(100);
                         await foreach (PwnedPasswordsIngestionValue? entry in JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(stream, cancellationToken: cancellationToken))
                         {
                             if (entry != null)
