@@ -31,45 +31,22 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
         private readonly TableClient _hashDataTable;
         private readonly TableClient _cachePurgeTable;
         private readonly ILogger _log;
-        private volatile bool _initialized = false;
-        private readonly SemaphoreSlim _semaphore = new(1);
 
-        public TableStorage(IOptions<TableStorageOptions> options, ILogger<TableStorage> log)
+        public TableStorage(IOptions<TableStorageOptions> options, ILogger<TableStorage> log, TableServiceClient serviceClient)
         {
             _log = log;
-            var tableServiceClient = new TableServiceClient(options.Value.ConnectionString);
-            _transactionTable = tableServiceClient.GetTableClient($"{options.Value.Namespace}transactions");
-            _dataTable = tableServiceClient.GetTableClient($"{options.Value.Namespace}transactiondata");
-            _hashDataTable = tableServiceClient.GetTableClient($"{options.Value.Namespace}hashdata");
-            _cachePurgeTable = tableServiceClient.GetTableClient($"{options.Value.Namespace}cachepurge");
-        }
-
-        private async ValueTask InitializeIfNeededAsync()
-        {
-            if (!_initialized)
-            {
-                if (!_semaphore.Wait(0))
-                {
-                    await _semaphore.WaitAsync().ConfigureAwait(false);
-                }
-
-                if (!_initialized)
-                {
-                    await Task.WhenAll(
-                        _transactionTable.CreateIfNotExistsAsync(),
-                        _dataTable.CreateIfNotExistsAsync(),
-                        _hashDataTable.CreateIfNotExistsAsync(),
-                        _cachePurgeTable.CreateIfNotExistsAsync()).ConfigureAwait(false);
-                    _initialized = true;
-                }
-
-                _semaphore.Release();
-            }
+            _transactionTable = serviceClient.GetTableClient($"{options.Value.Namespace}transactions");
+            _dataTable = serviceClient.GetTableClient($"{options.Value.Namespace}transactiondata");
+            _hashDataTable = serviceClient.GetTableClient($"{options.Value.Namespace}hashdata");
+            _cachePurgeTable = serviceClient.GetTableClient($"{options.Value.Namespace}cachepurge");
+            _transactionTable.CreateIfNotExists();
+            _dataTable.CreateIfNotExists();
+            _hashDataTable.CreateIfNotExists();
+            _cachePurgeTable.CreateIfNotExists();
         }
 
         public async Task<PwnedPasswordsTransaction> InsertAppendDataAsync(string subscriptionId, CancellationToken cancellationToken = default)
         {
-            await InitializeIfNeededAsync().ConfigureAwait(false);
             var transaction = new PwnedPasswordsTransaction { TransactionId = Guid.NewGuid().ToString() };
             await _transactionTable.AddEntityAsync(new AppendTransactionEntity { PartitionKey = subscriptionId, RowKey = transaction.TransactionId, Confirmed = false }, cancellationToken).ConfigureAwait(false);
             _log.LogInformation("Subscription {SubscriptionId} created a new transaction with id = {TransactionId}.", subscriptionId, transaction.TransactionId);
@@ -78,7 +55,6 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
 
         public async Task<bool> ConfirmAppendDataAsync(string subscriptionId, PwnedPasswordsTransaction transaction, CancellationToken cancellationToken = default)
         {
-            await InitializeIfNeededAsync().ConfigureAwait(false);
             try
             {
                 Response<AppendTransactionEntity> transactionEntityResponse = await _transactionTable.GetEntityAsync<AppendTransactionEntity>(subscriptionId, transaction.TransactionId, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -110,7 +86,6 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
 
         public async Task<bool> IsTransactionConfirmedAsync(string subscriptionId, string transactionId, CancellationToken cancellationToken = default)
         {
-            await InitializeIfNeededAsync().ConfigureAwait(false);
             try
             {
                 Response<AppendTransactionEntity> transactionEntityResponse = await _transactionTable.GetEntityAsync<AppendTransactionEntity>(subscriptionId, transactionId, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -124,7 +99,6 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
 
         public async Task<List<PwnedPasswordsIngestionValue>> GetTransactionValuesAsync(string subscriptionId, string transactionId, CancellationToken cancellationToken = default)
         {
-            await InitializeIfNeededAsync().ConfigureAwait(false);
             var entries = new List<PwnedPasswordsIngestionValue>();
             AsyncPageable<AppendDataEntity> transactionDataResponse = _dataTable.QueryAsync<AppendDataEntity>(x => x.PartitionKey == transactionId, cancellationToken: cancellationToken);
             await foreach (AppendDataEntity item in transactionDataResponse)
@@ -137,7 +111,6 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
 
         public async Task<bool> AddOrIncrementHashEntry(string subscriptionId, string transactionId, PwnedPasswordsIngestionValue value, CancellationToken cancellationToken = default)
         {
-            await InitializeIfNeededAsync().ConfigureAwait(false);
             string partitionKey = value.SHA1Hash[..5];
             string rowKey = value.SHA1Hash[5..];
 
@@ -169,7 +142,6 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
 
         public async Task MarkHashPrefixAsModified(string prefix, CancellationToken cancellationToken = default)
         {
-            await InitializeIfNeededAsync().ConfigureAwait(false);
             await _cachePurgeTable.UpsertEntityAsync(new TableEntity($"{DateTime.UtcNow.Year}-{DateTime.UtcNow.Month}-{DateTime.UtcNow.Day}", prefix), cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
@@ -179,7 +151,6 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
         /// <returns>List of partition keys which have been modified</returns>
         public async Task<List<string>> GetModifiedHashPrefixes(CancellationToken cancellationToken = default)
         {
-            await InitializeIfNeededAsync().ConfigureAwait(false);
             DateTime yesterday = DateTime.UtcNow.AddDays(-1);
             AsyncPageable<TableEntity> results = _cachePurgeTable.QueryAsync<TableEntity>(x => x.PartitionKey == $"{yesterday.Year}-{yesterday.Month}-{yesterday.Day}", cancellationToken: cancellationToken);
             var prefixes = new List<string>();

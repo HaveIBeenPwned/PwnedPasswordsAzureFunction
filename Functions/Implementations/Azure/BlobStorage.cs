@@ -22,10 +22,11 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
     /// </summary>
     public class BlobStorage : IFileStorage
     {
+        private static readonly RecyclableMemoryStreamManager s_manager = new(RecyclableMemoryStreamManager.DefaultBlockSize, RecyclableMemoryStreamManager.DefaultLargeBufferMultiple, RecyclableMemoryStreamManager.DefaultMaximumBufferSize);
+
         private readonly BlobContainerClient _blobContainerClient;
         private readonly BlobContainerClient _ingestionContainerClient;
         private readonly ILogger _log;
-        private static RecyclableMemoryStreamManager s_manager = new RecyclableMemoryStreamManager(RecyclableMemoryStreamManager.DefaultBlockSize, RecyclableMemoryStreamManager.DefaultLargeBufferMultiple, RecyclableMemoryStreamManager.DefaultMaximumBufferSize);
 
         /// <summary>
         /// Create a new Blob storage access instance
@@ -33,25 +34,23 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
         /// <param name="blobServiceClient">Client instance for accessing blob storage</param>
         /// <param name="options">Configuration instance</param>
         /// <param name="log">Logger instance to emit diagnostic information to</param>
-        public BlobStorage(IOptions<BlobStorageOptions> options, ILogger<BlobStorage> log)
+        public BlobStorage(IOptions<BlobStorageOptions> options, ILogger<BlobStorage> log, BlobServiceClient serviceClient)
         {
             BlobStorageOptions storageOptions = options.Value;
 
             _log = log;
-            var serviceClient = new BlobServiceClient(storageOptions.ConnectionString);
             _blobContainerClient = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName);
             _ingestionContainerClient = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName + "ingestion");
+            _ingestionContainerClient.CreateIfNotExists();
         }
 
         public async Task StoreIngestionFileAsync(string transactionId, Stream ingestionStream, CancellationToken cancellationToken = default)
         {
-            await _ingestionContainerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-            await _ingestionContainerClient.UploadBlobAsync(transactionId, ingestionStream, cancellationToken);
+            await _ingestionContainerClient.UploadBlobAsync(transactionId, ingestionStream, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<Stream> GetIngestionFileAsync(string transactionId, CancellationToken cancellationToken = default)
         {
-            await _ingestionContainerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
             Response<BlobDownloadStreamingResult>? result = await _ingestionContainerClient.GetBlobClient(transactionId).DownloadStreamingAsync(cancellationToken: cancellationToken);
             return result.Value.Content;
         }
@@ -63,7 +62,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
 
             try
             {
-                var recyclableStream = s_manager.GetStream();
+                MemoryStream recyclableStream = s_manager.GetStream();
                 Response<BlobDownloadStreamingResult> response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
                 using(response.Value.Content)
                 {
@@ -84,7 +83,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
             string fileName = $"{hashPrefix}.txt";
             BlobClient blobClient = _blobContainerClient.GetBlobClient(fileName);
 
-            using (var memStream = new MemoryStream())
+            using (MemoryStream memStream = s_manager.GetStream())
             {
                 using (var writer = new StreamWriter(memStream))
                 {

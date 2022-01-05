@@ -1,17 +1,22 @@
 ﻿using System.Collections.Generic;
 
+using Azure.Storage.Blobs;
+using Azure.Storage.Queues;
+
 using HaveIBeenPwned.PwnedPasswords;
 using HaveIBeenPwned.PwnedPasswords.Abstractions;
 using HaveIBeenPwned.PwnedPasswords.Implementations.Azure;
 using HaveIBeenPwned.PwnedPasswords.Implementations.Cloudflare;
 
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
+using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 [assembly: FunctionsStartup(typeof(Startup))]
 namespace HaveIBeenPwned.PwnedPasswords
 {
+
     public class Startup : FunctionsStartup
     {
         public override void Configure(IFunctionsHostBuilder builder)
@@ -61,6 +66,16 @@ namespace HaveIBeenPwned.PwnedPasswords
                 .AddSingleton<ITableStorage, TableStorage>();
 
             builder.Services.AddHttpClient();
+            builder.Services.AddAzureClients(azureBuilder =>
+            {
+                string connectionString = context.Configuration["PwnedPasswordsConnectionString"];
+                azureBuilder.AddTableServiceClient(connectionString);
+                azureBuilder.AddBlobServiceClient(connectionString);
+                azureBuilder.AddQueueServiceClient(connectionString).ConfigureOptions(options =>
+                {
+                    options.MessageEncoding = QueueMessageEncoding.Base64;
+                });
+            });
         }
     }
 }
