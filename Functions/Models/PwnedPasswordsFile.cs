@@ -1,19 +1,15 @@
-﻿using System;
-using System.IO;
+﻿namespace HaveIBeenPwned.PwnedPasswords.Models;
 
-namespace HaveIBeenPwned.PwnedPasswords.Models
+public readonly struct PwnedPasswordsFile
 {
-    public readonly struct PwnedPasswordsFile
-    {
-        public Stream Content { get; }
-        public DateTimeOffset LastModified { get; }
-        public string ETag { get; }
+    public Stream Content { get; }
+    public DateTimeOffset LastModified { get; }
+    public string ETag { get; }
 
-        public PwnedPasswordsFile(Stream content, DateTimeOffset lastModified, string etag)
-        {
-            Content = content;
-            LastModified = lastModified;
-            ETag = etag;
-        }
+    public PwnedPasswordsFile(Stream content, DateTimeOffset lastModified, string etag)
+    {
+        Content = content;
+        LastModified = lastModified;
+        ETag = etag;
     }
 }

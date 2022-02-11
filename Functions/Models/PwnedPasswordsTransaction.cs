@@ -3,11 +3,10 @@
 
 using System.Text.Json.Serialization;
 
-namespace HaveIBeenPwned.PwnedPasswords.Models
+namespace HaveIBeenPwned.PwnedPasswords.Models;
+
+public class PwnedPasswordsTransaction
 {
-    public class PwnedPasswordsTransaction
-    {
-        [JsonPropertyName("transactionId")]
-        public string TransactionId { get; set; } = "";
-    }
+    [JsonPropertyName("transactionId")]
+    public string TransactionId { get; set; } = "";
 }

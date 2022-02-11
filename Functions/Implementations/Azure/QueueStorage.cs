@@ -1,50 +1,36 @@
-﻿using System.Collections.Generic;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
+﻿namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure;
 
-using Azure.Storage.Queues;
-
-using HaveIBeenPwned.PwnedPasswords.Abstractions;
-using HaveIBeenPwned.PwnedPasswords.Models;
-
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
-namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure
+public class QueueStorage : IQueueStorage
 {
-    public class QueueStorage : IQueueStorage
+    private readonly ILogger _log;
+    private readonly QueueClient _queueClient;
+    private readonly QueueClient _transactionQueueClient;
+
+    public QueueStorage(IOptions<QueueStorageOptions> storageQueueOptions, ILogger<QueueStorage> log, QueueServiceClient serviceClient)
     {
-        private readonly ILogger _log;
-        private readonly QueueClient _queueClient;
-        private readonly QueueClient _transactionQueueClient;
+        _log = log;
+        _queueClient = serviceClient.GetQueueClient($"{storageQueueOptions.Value.Namespace}-ingestion");
+        _transactionQueueClient = serviceClient.GetQueueClient($"{storageQueueOptions.Value.Namespace}-transaction");
+        _queueClient.CreateIfNotExists();
+        _transactionQueueClient.CreateIfNotExists();
+    }
 
-        public QueueStorage(IOptions<QueueStorageOptions> storageQueueOptions, ILogger<QueueStorage> log, QueueServiceClient serviceClient)
-        {
-            _log = log;
-            _queueClient = serviceClient.GetQueueClient($"{storageQueueOptions.Value.Namespace}-ingestion");
-            _transactionQueueClient = serviceClient.GetQueueClient($"{storageQueueOptions.Value.Namespace}-transaction");
-            _queueClient.CreateIfNotExists();
-            _transactionQueueClient.CreateIfNotExists();
-        }
+    public async Task PushTransactionAsync(QueueTransactionEntry entry, CancellationToken cancellationToken = default)
+    {
+        await _transactionQueueClient.SendMessageAsync(JsonSerializer.Serialize(entry), cancellationToken);
+        _log.LogInformation("Subscription {SubscriptionId} successfully queued transaction {TransactionId} for processing.", entry.SubscriptionId, entry.TransactionId);
+    }
 
-        public async Task PushTransactionAsync(QueueTransactionEntry entry, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Push a append job to the queue
+    /// </summary>
+    /// <param name="append">The append request to push to the queue</param>
+    public async Task PushPasswordsAsync(List<QueuePasswordEntry> entries, CancellationToken cancellationToken = default)
+    {
+        await _queueClient.SendMessageAsync(JsonSerializer.Serialize(entries), cancellationToken).ConfigureAwait(false);
+        foreach (QueuePasswordEntry? entry in entries)
         {
-            await _transactionQueueClient.SendMessageAsync(JsonSerializer.Serialize(entry), cancellationToken);
-            _log.LogInformation("Subscription {SubscriptionId} successfully queued transaction {TransactionId} for processing.", entry.SubscriptionId, entry.TransactionId);
-        }
-
-        /// <summary>
-        /// Push a append job to the queue
-        /// </summary>
-        /// <param name="append">The append request to push to the queue</param>
-        public async Task PushPasswordsAsync(List<QueuePasswordEntry> entries, CancellationToken cancellationToken = default)
-        {
-            await _queueClient.SendMessageAsync(JsonSerializer.Serialize(entries), cancellationToken).ConfigureAwait(false);
-            foreach (QueuePasswordEntry? entry in entries)
-            {
-                _log.LogInformation("Subscription {SubscriptionId} successfully queued SHA1 hash {SHA1} as part af transaction {TransactionId}", entry.SubscriptionId, entry.SHA1Hash, entry.TransactionId);
-            }
+            _log.LogInformation("Subscription {SubscriptionId} successfully queued SHA1 hash {SHA1} as part af transaction {TransactionId}", entry.SubscriptionId, entry.SHA1Hash, entry.TransactionId);
         }
     }
 }
