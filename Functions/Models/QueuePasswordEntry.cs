@@ -3,19 +3,18 @@
 
 using System.Text.Json.Serialization;
 
-namespace HaveIBeenPwned.PwnedPasswords.Models
+namespace HaveIBeenPwned.PwnedPasswords.Models;
+
+public class QueuePasswordEntry
 {
-    public class QueuePasswordEntry
-    {
-        [JsonPropertyName("subscriptionId")]
-        public string SubscriptionId { get; set; } = "";
-        [JsonPropertyName("transactionId")]
-        public string TransactionId { get; set; } = "";
-        [JsonPropertyName("sha1Hash")]
-        public string SHA1Hash { get; set; } = "";
-        [JsonPropertyName("ntlmHash")]
-        public string NTLMHash { get; set; } = "";
-        [JsonPropertyName("prevalence")]
-        public int Prevalence { get; set; }
-    }
+    [JsonPropertyName("subscriptionId")]
+    public string SubscriptionId { get; set; } = "";
+    [JsonPropertyName("transactionId")]
+    public string TransactionId { get; set; } = "";
+    [JsonPropertyName("sha1Hash")]
+    public string SHA1Hash { get; set; } = "";
+    [JsonPropertyName("ntlmHash")]
+    public string NTLMHash { get; set; } = "";
+    [JsonPropertyName("prevalence")]
+    public int Prevalence { get; set; }
 }

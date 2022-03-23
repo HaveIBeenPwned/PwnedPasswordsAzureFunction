@@ -3,15 +3,14 @@
 
 using System.Text.Json.Serialization;
 
-namespace HaveIBeenPwned.PwnedPasswords.Models
+namespace HaveIBeenPwned.PwnedPasswords.Models;
+
+public class PwnedPasswordsIngestionValue
 {
-    public class PwnedPasswordsIngestionValue
-    {
-        [JsonPropertyName("sha1")]
-        public string SHA1Hash { get; set; } = "";
-        [JsonPropertyName("ntlm")]
-        public string NTLMHash { get; set; } = "";
-        [JsonPropertyName("num")]
-        public int Prevalence { get; set; }
-    }
+    [JsonPropertyName("sha1")]
+    public string SHA1Hash { get; set; } = "";
+    [JsonPropertyName("ntlm")]
+    public string NTLMHash { get; set; } = "";
+    [JsonPropertyName("num")]
+    public int Prevalence { get; set; }
 }

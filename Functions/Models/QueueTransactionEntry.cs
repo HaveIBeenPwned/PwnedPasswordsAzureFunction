@@ -3,13 +3,12 @@
 
 using System.Text.Json.Serialization;
 
-namespace HaveIBeenPwned.PwnedPasswords.Models
+namespace HaveIBeenPwned.PwnedPasswords.Models;
+
+public class QueueTransactionEntry
 {
-    public class QueueTransactionEntry
-    {
-        [JsonPropertyName("subscriptionId")]
-        public string SubscriptionId { get; set; } = "";
-        [JsonPropertyName("transactionId")]
-        public string TransactionId { get; set; } = "";
-    }
+    [JsonPropertyName("subscriptionId")]
+    public string SubscriptionId { get; set; } = "";
+    [JsonPropertyName("transactionId")]
+    public string TransactionId { get; set; } = "";
 }
