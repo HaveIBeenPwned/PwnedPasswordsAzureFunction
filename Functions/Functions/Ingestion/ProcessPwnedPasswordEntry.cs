@@ -105,6 +105,8 @@ public class ProcessPwnedPasswordEntry
                 {
                     hashes.Add(hashLine[..35], currentPrevalence);
                 }
+
+                hashLine = reader.ReadLine();
             }
         }
 
