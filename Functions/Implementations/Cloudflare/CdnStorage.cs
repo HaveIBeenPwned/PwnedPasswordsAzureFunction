@@ -37,6 +37,7 @@ public sealed class CdnStorage : ICdnStorage
     {
         async Task SendPurgeCommand(List<string> urisToPurge, CancellationToken cancellationToken = default)
         {
+            _log.LogInformation("Purging the following URIs from Cloudflare Cache: {URIs}", string.Join(", ", urisToPurge));
             using (HttpResponseMessage? response = await _httpClient.PostAsJsonAsync(string.Empty, new { files = urisToPurge }, cancellationToken))
             {
                 try
