@@ -66,7 +66,7 @@ public sealed class CdnStorage : ICdnStorage
 
         for (int i = 0; i < hashPrefixes.Count; i++)
         {
-            filesToPurge.Add($"{_options.Value.PwnedPasswordsBaseUrl}range/{hashPrefixes[i]}");
+            filesToPurge.Add(new UriBuilder(_options.Value.PwnedPasswordsBaseUrl) { Path = $"range/{hashPrefixes[i]}" }.Uri.GetComponents(UriComponents.Host | UriComponents.Path, UriFormat.SafeUnescaped));
             if (filesToPurge.Count == 30)
             {
                 await SendPurgeCommand(filesToPurge, cancellationToken);
