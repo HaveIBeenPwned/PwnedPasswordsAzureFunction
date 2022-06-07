@@ -37,8 +37,8 @@ public sealed class CdnStorage : ICdnStorage
     {
         async Task SendPurgeCommand(List<string> urisToPurge, CancellationToken cancellationToken = default)
         {
-            _log.LogInformation("Purging the following URIs from Cloudflare Cache: {URIs}", string.Join(", ", urisToPurge));
-            using (HttpResponseMessage? response = await _httpClient.PostAsJsonAsync(string.Empty, new { files = urisToPurge }, cancellationToken))
+            _log.LogInformation("Purging the following prefixes from Cloudflare Cache: {URIs}", string.Join(", ", urisToPurge));
+            using (HttpResponseMessage? response = await _httpClient.PostAsJsonAsync(string.Empty, new { prefixes = urisToPurge }, cancellationToken))
             {
                 try
                 {
@@ -66,7 +66,7 @@ public sealed class CdnStorage : ICdnStorage
 
         for (int i = 0; i < hashPrefixes.Count; i++)
         {
-            filesToPurge.Add(new UriBuilder(_options.Value.PwnedPasswordsBaseUrl) { Path = $"range/{hashPrefixes[i]}" }.Uri.ToString());
+            filesToPurge.Add($"{_options.Value.PwnedPasswordsBaseUrl}range/{hashPrefixes[i]}");
             if (filesToPurge.Count == 30)
             {
                 await SendPurgeCommand(filesToPurge, cancellationToken);
