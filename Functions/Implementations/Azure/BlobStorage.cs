@@ -75,11 +75,7 @@ public class BlobStorage : IFileStorage
         {
             using (var writer = new StreamWriter(memStream))
             {
-                foreach (KeyValuePair<string, int> item in hashes)
-                {
-                    writer.WriteLine($"{item.Key}:{item.Value:n0}");
-                }
-
+                RenderHashes(hashes, writer);
                 writer.Flush();
                 memStream.Seek(0, SeekOrigin.Begin);
                 try
@@ -93,6 +89,22 @@ public class BlobStorage : IFileStorage
                     _log.LogWarning(ex, $"Unable to update blob {fileName} since ETag does not match.");
                     return false;
                 }
+            }
+        }
+    }
+
+    public static void RenderHashes(SortedDictionary<string, int> hashes, TextWriter writer)
+    {
+        int i = 0;
+        foreach (KeyValuePair<string, int> item in hashes)
+        {
+            if (++i < hashes.Count)
+            {
+                writer.WriteLine($"{item.Key}:{item.Value:n0}");
+            }
+            else
+            {
+                writer.Write($"{item.Key}:{item.Value:n0}");
             }
         }
     }
