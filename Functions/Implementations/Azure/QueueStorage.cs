@@ -25,7 +25,7 @@ public class QueueStorage : IQueueStorage
     /// Push a append job to the queue
     /// </summary>
     /// <param name="append">The append request to push to the queue</param>
-    public async Task PushPasswordsAsync(List<QueuePasswordEntry> entries, CancellationToken cancellationToken = default)
+    public async Task PushPasswordsAsync(QueuePasswordEntry[] entries, CancellationToken cancellationToken = default)
     {
         await _queueClient.SendMessageAsync(JsonSerializer.Serialize(entries), cancellationToken).ConfigureAwait(false);
         foreach (QueuePasswordEntry? entry in entries)

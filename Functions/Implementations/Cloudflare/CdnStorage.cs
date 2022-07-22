@@ -1,4 +1,5 @@
 ﻿using System.Net.Http;
+using System.Threading.Channels;
 
 namespace HaveIBeenPwned.PwnedPasswords.Implementations.Cloudflare;
 
@@ -35,30 +36,11 @@ public sealed class CdnStorage : ICdnStorage
     /// <returns>Boolean stating if Cloudflare returned a success in the JSON response</returns>
     public async Task PurgeFilesAsync(List<string> hashPrefixes, CancellationToken cancellationToken = default)
     {
-        async Task SendPurgeCommand(List<string> urisToPurge, CancellationToken cancellationToken = default)
+        Channel<string[]> channel = Channel.CreateBounded<string[]>(new BoundedChannelOptions(16) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
+        Task[] queueTasks = new Task[16];
+        for (int i = 0; i < queueTasks.Length; i++)
         {
-            _log.LogInformation("Purging the following prefixes from Cloudflare Cache: {URIs}", string.Join(", ", urisToPurge));
-            using (HttpResponseMessage? response = await _httpClient.PostAsJsonAsync(string.Empty, new { prefixes = urisToPurge }, cancellationToken))
-            {
-                try
-                {
-                    JsonDocument? result = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-                    bool success = result.RootElement.GetProperty("success").GetBoolean();
-
-                    if (success)
-                    {
-                        _log.LogInformation($"Purged {urisToPurge.Count} files from Cloudflare Cache.");
-                    }
-                    else
-                    {
-                        _log.LogError($"Cloudflare purge failed. Result: {result}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _log.LogError(ex, "Cloudflare purge failed.");
-                }
-            }
+            queueTasks[i] = ProcessQueueItem(channel, cancellationToken);
         }
 
         // We can max purge 30 uris at a time.
@@ -69,14 +51,58 @@ public sealed class CdnStorage : ICdnStorage
             filesToPurge.Add(new UriBuilder(_options.Value.PwnedPasswordsBaseUrl) { Path = $"range/{hashPrefixes[i]}" }.Uri.GetComponents(UriComponents.Host | UriComponents.Path, UriFormat.SafeUnescaped));
             if (filesToPurge.Count == 30)
             {
-                await SendPurgeCommand(filesToPurge, cancellationToken);
+                string[] items = filesToPurge.ToArray();
+                if (!channel.Writer.TryWrite(items))
+                {
+                    await channel.Writer.WriteAsync(items, cancellationToken);
+                }
+
                 filesToPurge.Clear();
             }
         }
 
         if (filesToPurge.Count > 0)
         {
-            await SendPurgeCommand(filesToPurge, cancellationToken);
+            string[] items = filesToPurge.ToArray();
+            if (!channel.Writer.TryWrite(items))
+            {
+                await channel.Writer.WriteAsync(items, cancellationToken);
+            }
+        }
+
+        channel.Writer.TryComplete();
+        await Task.WhenAll(queueTasks);
+    }
+
+    private async Task ProcessQueueItem(Channel<string[]> channel, CancellationToken cancellationToken)
+    {
+        while (await channel.Reader.WaitToReadAsync(cancellationToken))
+        {
+            if (channel.Reader.TryRead(out string[]? urisToPurge) && urisToPurge != null)
+            {
+                _log.LogInformation("Purging the following prefixes from Cloudflare Cache: {URIs}", string.Join(", ", urisToPurge));
+                using (HttpResponseMessage? response = await _httpClient.PostAsJsonAsync(string.Empty, new { prefixes = urisToPurge }, cancellationToken))
+                {
+                    try
+                    {
+                        JsonDocument? result = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+                        bool success = result.RootElement.GetProperty("success").GetBoolean();
+
+                        if (success)
+                        {
+                            _log.LogInformation($"Purged {urisToPurge.Length} files from Cloudflare Cache.");
+                        }
+                        else
+                        {
+                            _log.LogError($"Cloudflare purge failed. Result: {result}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogError(ex, "Cloudflare purge failed.");
+                    }
+                }
+            }
         }
     }
 }
