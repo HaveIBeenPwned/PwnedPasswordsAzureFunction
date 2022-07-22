@@ -26,8 +26,8 @@ public class ProcessTransaction
     [FunctionName("ProcessTransactionQueueItem")]
     public async Task Run([QueueTrigger("%TableNamespace%-transaction", Connection = "PwnedPasswordsConnectionString")] byte[] queueItem, CancellationToken cancellationToken)
     {
-        Channel<QueuePasswordEntry[]> channel = Channel.CreateBounded<QueuePasswordEntry[]>(new BoundedChannelOptions(16) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
-        Task[] queueTasks = new Task[16];
+        Channel<QueuePasswordEntry[]> channel = Channel.CreateBounded<QueuePasswordEntry[]>(new BoundedChannelOptions(Startup.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
+        Task[] queueTasks = new Task[Startup.Parallelism];
 
         for(int i = 0; i < queueTasks.Length; i++)
         {
