@@ -33,15 +33,12 @@ public class ProcessPwnedPasswordEntry
             Task[] queueTasks = new Task[Startup.Parallelism];
             for (int i = 0; i < queueTasks.Length; i++)
             {
-                queueTasks[i] = ProcessQueueItem(channel, cancellationToken);
+                queueTasks[i] = ProcessQueueItem(channel);
             }
 
             foreach (QueuePasswordEntry item in items)
             {
-                if (!channel.Writer.TryWrite(item))
-                {
-                    await channel.Writer.WriteAsync(item, cancellationToken);
-                }
+                await channel.Writer.WriteAsync(item);
             }
 
             channel.Writer.TryComplete();
@@ -49,7 +46,7 @@ public class ProcessPwnedPasswordEntry
         }
     }
 
-    private async Task ProcessQueueItem(Channel<QueuePasswordEntry> channel, CancellationToken cancellationToken)
+    private async Task ProcessQueueItem(Channel<QueuePasswordEntry> channel, CancellationToken cancellationToken = default)
     {
         while (await channel.Reader.WaitToReadAsync(cancellationToken))
         {

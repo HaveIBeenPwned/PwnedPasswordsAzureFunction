@@ -28,10 +28,9 @@ public class ProcessTransaction
     {
         Channel<QueuePasswordEntry[]> channel = Channel.CreateBounded<QueuePasswordEntry[]>(new BoundedChannelOptions(Startup.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
         Task[] queueTasks = new Task[Startup.Parallelism];
-
         for(int i = 0; i < queueTasks.Length; i++)
         {
-            queueTasks[i] = ProcessQueueItem(channel, cancellationToken);
+            queueTasks[i] = ProcessQueueItem(channel);
         }
 
         QueueTransactionEntry? item = JsonSerializer.Deserialize<QueueTransactionEntry>(Encoding.UTF8.GetString(queueItem));
@@ -57,11 +56,7 @@ public class ProcessTransaction
                             if (entries.Count == 100)
                             {
                                 QueuePasswordEntry[] items = entries.ToArray();
-                                if (!channel.Writer.TryWrite(items))
-                                {
-                                    await channel.Writer.WriteAsync(items, cancellationToken);
-                                }
-
+                                await channel.Writer.WriteAsync(items);
                                 entries.Clear();
                             }
                         }
@@ -70,10 +65,7 @@ public class ProcessTransaction
                     if (entries.Count > 0)
                     {
                         QueuePasswordEntry[] items = entries.ToArray();
-                        if (!channel.Writer.TryWrite(items))
-                        {
-                            await channel.Writer.WriteAsync(items, cancellationToken);
-                        }
+                        await channel.Writer.WriteAsync(items);
                     }
                 }
 
