@@ -36,8 +36,8 @@ public sealed class CdnStorage : ICdnStorage
     /// <returns>Boolean stating if Cloudflare returned a success in the JSON response</returns>
     public async Task PurgeFilesAsync(List<string> hashPrefixes, CancellationToken cancellationToken = default)
     {
-        Channel<string[]> channel = Channel.CreateBounded<string[]>(new BoundedChannelOptions(16) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
-        Task[] queueTasks = new Task[16];
+        Channel<string[]> channel = Channel.CreateBounded<string[]>(new BoundedChannelOptions(Startup.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
+        Task[] queueTasks = new Task[Startup.Parallelism];
         for (int i = 0; i < queueTasks.Length; i++)
         {
             queueTasks[i] = ProcessQueueItem(channel, cancellationToken);

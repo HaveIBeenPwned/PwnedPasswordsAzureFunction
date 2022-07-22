@@ -11,6 +11,7 @@ namespace HaveIBeenPwned.PwnedPasswords;
 
 public class Startup : FunctionsStartup
 {
+    public const int Parallelism = 4;
     public override void Configure(IFunctionsHostBuilder builder)
     {
         FunctionsHostBuilderContext? context = builder.GetContext();

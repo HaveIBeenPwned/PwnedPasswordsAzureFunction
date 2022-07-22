@@ -29,8 +29,8 @@ public class ProcessPwnedPasswordEntry
         var items = JsonSerializer.Deserialize<QueuePasswordEntry[]>(Encoding.UTF8.GetString(queueItem));
         if (items != null)
         {
-            Channel<QueuePasswordEntry> channel = Channel.CreateBounded<QueuePasswordEntry>(new BoundedChannelOptions(16) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
-            Task[] queueTasks = new Task[16];
+            Channel<QueuePasswordEntry> channel = Channel.CreateBounded<QueuePasswordEntry>(new BoundedChannelOptions(Startup.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
+            Task[] queueTasks = new Task[Startup.Parallelism];
             for (int i = 0; i < queueTasks.Length; i++)
             {
                 queueTasks[i] = ProcessQueueItem(channel, cancellationToken);
