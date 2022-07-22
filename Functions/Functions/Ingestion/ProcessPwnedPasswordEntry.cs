@@ -1,5 +1,7 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+using System.Threading.Channels;
+
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
 public class ProcessPwnedPasswordEntry
@@ -27,7 +29,31 @@ public class ProcessPwnedPasswordEntry
         var items = JsonSerializer.Deserialize<QueuePasswordEntry[]>(Encoding.UTF8.GetString(queueItem));
         if (items != null)
         {
+            Channel<QueuePasswordEntry> channel = Channel.CreateBounded<QueuePasswordEntry>(new BoundedChannelOptions(16) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
+            Task[] queueTasks = new Task[16];
+            for (int i = 0; i < queueTasks.Length; i++)
+            {
+                queueTasks[i] = ProcessQueueItem(channel, cancellationToken);
+            }
+
             foreach (QueuePasswordEntry item in items)
+            {
+                if (!channel.Writer.TryWrite(item))
+                {
+                    await channel.Writer.WriteAsync(item, cancellationToken);
+                }
+            }
+
+            channel.Writer.TryComplete();
+            await Task.WhenAll(queueTasks);
+        }
+    }
+
+    private async Task ProcessQueueItem(Channel<QueuePasswordEntry> channel, CancellationToken cancellationToken)
+    {
+        while (await channel.Reader.WaitToReadAsync(cancellationToken))
+        {
+            if (channel.Reader.TryRead(out QueuePasswordEntry? item) && item != null)
             {
                 await ProcessPasswordEntry(item, cancellationToken).ConfigureAwait(false);
             }
