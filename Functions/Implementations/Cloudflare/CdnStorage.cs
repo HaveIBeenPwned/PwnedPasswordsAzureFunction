@@ -40,7 +40,7 @@ public sealed class CdnStorage : ICdnStorage
         Task[] queueTasks = new Task[Startup.Parallelism];
         for (int i = 0; i < queueTasks.Length; i++)
         {
-            queueTasks[i] = ProcessQueueItem(channel, cancellationToken);
+            queueTasks[i] = ProcessQueueItem(channel);
         }
 
         // We can max purge 30 uris at a time.
@@ -52,10 +52,7 @@ public sealed class CdnStorage : ICdnStorage
             if (filesToPurge.Count == 30)
             {
                 string[] items = filesToPurge.ToArray();
-                if (!channel.Writer.TryWrite(items))
-                {
-                    await channel.Writer.WriteAsync(items, cancellationToken);
-                }
+                await channel.Writer.WriteAsync(items);
 
                 filesToPurge.Clear();
             }
@@ -64,17 +61,14 @@ public sealed class CdnStorage : ICdnStorage
         if (filesToPurge.Count > 0)
         {
             string[] items = filesToPurge.ToArray();
-            if (!channel.Writer.TryWrite(items))
-            {
-                await channel.Writer.WriteAsync(items, cancellationToken);
-            }
+            await channel.Writer.WriteAsync(items);
         }
 
         channel.Writer.TryComplete();
         await Task.WhenAll(queueTasks);
     }
 
-    private async Task ProcessQueueItem(Channel<string[]> channel, CancellationToken cancellationToken)
+    private async Task ProcessQueueItem(Channel<string[]> channel, CancellationToken cancellationToken = default)
     {
         while (await channel.Reader.WaitToReadAsync(cancellationToken))
         {
