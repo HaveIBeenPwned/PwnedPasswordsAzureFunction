@@ -12,7 +12,7 @@ on:
 #
 # 2. Change these variables for your configuration:
 env:
-  AZURE_FUNCTIONAPP_NAME: pwnedpasswordsoss-dev
+  AZURE_FUNCTIONAPP_NAME: pwnedpasswords-dev
   AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
 
 jobs:
