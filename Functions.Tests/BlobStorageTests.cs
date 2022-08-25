@@ -21,10 +21,10 @@ public class BlobStorageTests
     {
         SortedDictionary<string, int> fakeHahes = new SortedDictionary<string, int>();
         fakeHahes.Add("ABCDEF", 0);
-        fakeHahes.Add("FEDCBA", 1);
+        fakeHahes.Add("FEDCBA", 1234);
 
         StringWriter writer = new StringWriter();
         BlobStorage.RenderHashes(fakeHahes, writer);
-        Assert.Equal($"ABCDEF:0{writer.NewLine}FEDCBA:1", writer.ToString());
+        Assert.Equal($"ABCDEF:0{writer.NewLine}FEDCBA:1234", writer.ToString());
     }
 }
