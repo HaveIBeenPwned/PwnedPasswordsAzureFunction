@@ -6,5 +6,5 @@ namespace HaveIBeenPwned.PwnedPasswords.Abstractions;
 public interface IQueueStorage
 {
     Task PushTransactionAsync(QueueTransactionEntry entry, CancellationToken cancellationToken = default);
-    Task PushPasswordsAsync(QueuePasswordEntry[] entry, CancellationToken cancellationToken = default);
+    Task PushPasswordsAsync(PasswordEntryBatch entryBatch, CancellationToken cancellationToken = default);
 }

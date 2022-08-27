@@ -26,7 +26,7 @@ public class ProcessTransaction
     [FunctionName("ProcessTransactionQueueItem")]
     public async Task Run([QueueTrigger("%TableNamespace%-transaction", Connection = "PwnedPasswordsConnectionString")] byte[] queueItem, CancellationToken cancellationToken)
     {
-        Channel<QueuePasswordEntry[]> channel = Channel.CreateBounded<QueuePasswordEntry[]>(new BoundedChannelOptions(Startup.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
+        Channel<PasswordEntryBatch> channel = Channel.CreateBounded<PasswordEntryBatch>(new BoundedChannelOptions(Startup.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
         Task[] queueTasks = new Task[Startup.Parallelism];
         for(int i = 0; i < queueTasks.Length; i++)
         {
@@ -47,25 +47,38 @@ public class ProcessTransaction
                 _log.LogInformation("Subscription {SubscriptionId} started processing for transaction {TransactionId}. Fetching transaction entries.", item.SubscriptionId, item.TransactionId);
                 using (Stream stream = await _fileStorage.GetIngestionFileAsync(item.TransactionId, cancellationToken).ConfigureAwait(false))
                 {
-                    var entries = new List<QueuePasswordEntry>(100);
+                    Dictionary<string, List<PwnedPasswordsIngestionValue>> entries = new Dictionary<string, List<PwnedPasswordsIngestionValue>>();
                     await foreach (PwnedPasswordsIngestionValue? entry in JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(stream, cancellationToken: cancellationToken))
                     {
                         if (entry != null)
                         {
-                            entries.Add(new QueuePasswordEntry { SubscriptionId = item.SubscriptionId, TransactionId = item.TransactionId, SHA1Hash = entry.SHA1Hash.ToUpperInvariant(), NTLMHash = entry.NTLMHash.ToUpperInvariant(), Prevalence = entry.Prevalence });
-                            if (entries.Count == 100)
+                            string prefix = entry.SHA1Hash.ToUpperInvariant()[..5];
+                            List<PwnedPasswordsIngestionValue> values = entries[prefix];
+                            if(values == null)
                             {
-                                QueuePasswordEntry[] items = entries.ToArray();
-                                await channel.Writer.WriteAsync(items);
-                                entries.Clear();
+                                values = new List<PwnedPasswordsIngestionValue>();
+                                entries[prefix] = values;
                             }
+
+                            values.Add(entry);
                         }
                     }
 
-                    if (entries.Count > 0)
+                    foreach(KeyValuePair<string, List<PwnedPasswordsIngestionValue>> entryBatch in entries)
                     {
-                        QueuePasswordEntry[] items = entries.ToArray();
-                        await channel.Writer.WriteAsync(items);
+                        var batch = new PasswordEntryBatch
+                        {
+                            SubscriptionId = item.SubscriptionId,
+                            TransactionId = item.TransactionId,
+                            Prefix = entryBatch.Key
+                        };
+
+                        foreach (PwnedPasswordsIngestionValue batchEntry in entryBatch.Value)
+                        {
+                            batch.PasswordEntries.Add(new PasswordEntryBatch.PasswordEntry { SHA1Hash = batchEntry.SHA1Hash.ToUpperInvariant(), NTLMHash = batchEntry.NTLMHash.ToUpperInvariant(), Prevalence = batchEntry.Prevalence });
+                        }
+
+                        await channel.Writer.WriteAsync(batch);
                     }
                 }
 
@@ -80,11 +93,11 @@ public class ProcessTransaction
         }
     }
 
-    private async Task ProcessQueueItem(Channel<QueuePasswordEntry[]> channel, CancellationToken cancellationToken = default)
+    private async Task ProcessQueueItem(Channel<PasswordEntryBatch> channel, CancellationToken cancellationToken = default)
     {
         while(await channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            while (channel.Reader.TryRead(out QueuePasswordEntry[]? item) && item != null)
+            while (channel.Reader.TryRead(out PasswordEntryBatch? item) && item != null)
             {
                 await _queueStorage.PushPasswordsAsync(item, cancellationToken).ConfigureAwait(false);
             }
