@@ -28,37 +28,40 @@ public class ProcessPwnedPasswordEntryBatch
         {
             // Let's set some activity tags and log scopes so we have event correlation in our logs!
             Activity.Current?.AddTag("SubscriptionId", batch.SubscriptionId).AddTag("TransactionId", batch.TransactionId);
-            foreach (var item in batch.PasswordEntries)
+            List<Task> entryTasks = new();
+            foreach (PasswordEntryBatch.PasswordEntry item in batch.PasswordEntries)
             {
-                while (!await _tableStorage.AddOrIncrementHashEntry(batch, item, cancellationToken).ConfigureAwait(false))
+                entryTasks.Add(Task.Run(async () =>
                 {
-                }
-
-                string prefix = batch.Prefix;
-                string suffix = item.SHA1Hash[5..];
-
-                await _tableStorage.MarkHashPrefixAsModified(prefix, cancellationToken).ConfigureAwait(false);
-
-                bool blobUpdated = false;
-                while (!blobUpdated)
-                {
-                    try
+                    while (!await _tableStorage.AddOrIncrementHashEntry(batch, item, cancellationToken).ConfigureAwait(false))
                     {
-                        blobUpdated = await ParseAndUpdateHashFile(batch, cancellationToken).ConfigureAwait(false);
-                        if (!blobUpdated)
-                        {
-                            _log.LogWarning("Subscription {SubscriptionId} failed to updated blob {HashPrefix} as part of transaction {TransactionId}! Will retry!", batch.SubscriptionId, prefix, batch.TransactionId);
-                        }
                     }
-                    catch (FileNotFoundException)
-                    {
-                        _log.LogError("Subscription {SubscriptionId} is unable to find a hash file with prefix {prefix} as part of transaction {TransactionId}. Something is wrong as this shouldn't happen!", batch.SubscriptionId, prefix, batch.TransactionId);
-                        return;
-                    }
-                }
+                }, cancellationToken));
 
-                _log.LogInformation("Subscription {SubscriptionId} successfully updated blob {HashPrefix} as part of transaction {TransactionId}!", batch.SubscriptionId, prefix, batch.TransactionId);
+                await Task.WhenAll(entryTasks).ConfigureAwait(false);
             }
+
+            await _tableStorage.MarkHashPrefixAsModified(batch.Prefix, cancellationToken).ConfigureAwait(false);
+
+            bool blobUpdated = false;
+            while (!blobUpdated)
+            {
+                try
+                {
+                    blobUpdated = await ParseAndUpdateHashFile(batch, cancellationToken).ConfigureAwait(false);
+                    if (!blobUpdated)
+                    {
+                        _log.LogWarning("Subscription {SubscriptionId} failed to updated blob {HashPrefix} as part of transaction {TransactionId}! Will retry!", batch.SubscriptionId, batch.Prefix, batch.TransactionId);
+                    }
+                }
+                catch (FileNotFoundException)
+                {
+                    _log.LogError("Subscription {SubscriptionId} is unable to find a hash file with prefix {prefix} as part of transaction {TransactionId}. Something is wrong as this shouldn't happen!", batch.SubscriptionId, batch.Prefix, batch.TransactionId);
+                    return;
+                }
+            }
+
+            _log.LogInformation("Subscription {SubscriptionId} successfully updated blob {HashPrefix} as part of transaction {TransactionId}!", batch.SubscriptionId, batch.Prefix, batch.TransactionId);
         }
     }
 
