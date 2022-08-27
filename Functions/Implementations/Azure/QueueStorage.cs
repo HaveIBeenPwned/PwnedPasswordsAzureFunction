@@ -28,9 +28,9 @@ public class QueueStorage : IQueueStorage
     public async Task PushPasswordsAsync(PasswordEntryBatch batch, CancellationToken cancellationToken = default)
     {
         await _queueClient.SendMessageAsync(JsonSerializer.Serialize(batch), cancellationToken).ConfigureAwait(false);
-        foreach (KeyValuePair<string, List<PasswordEntryBatch.PasswordEntry>> item in batch.PasswordEntries)
+        foreach (KeyValuePair<string, List<PwnedPasswordsIngestionValue>> item in batch.PasswordEntries)
         {
-            foreach (PasswordEntryBatch.PasswordEntry entry in item.Value)
+            foreach (PwnedPasswordsIngestionValue entry in item.Value)
             {
                 _log.LogInformation("Subscription {SubscriptionId} successfully queued SHA1 hash {SHA1} as part af transaction {TransactionId}", batch.SubscriptionId, entry.SHA1Hash, batch.TransactionId);
             }

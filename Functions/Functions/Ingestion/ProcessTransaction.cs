@@ -52,7 +52,9 @@ public class ProcessTransaction
                     {
                         if (entry != null)
                         {
-                            string prefix = entry.SHA1Hash.ToUpperInvariant()[..5];
+                            entry.SHA1Hash = entry.SHA1Hash.ToUpperInvariant();
+                            entry.NTLMHash = entry.NTLMHash.ToUpperInvariant();
+                            string prefix = entry.SHA1Hash[..5];
                             if (!entries.TryGetValue(prefix, out List<PwnedPasswordsIngestionValue>? values))
                             {
                                 values = new List<PwnedPasswordsIngestionValue>();
@@ -72,7 +74,7 @@ public class ProcessTransaction
 
                     foreach (KeyValuePair<string, List<PwnedPasswordsIngestionValue>> entryBatch in entries)
                     {
-                        if (num > 300)
+                        if (num >= 300)
                         {
                             var currentBatch = batch;
                             await channel.Writer.WriteAsync(currentBatch);
@@ -85,12 +87,7 @@ public class ProcessTransaction
                             num = 0;
                         }
 
-                        batch.PasswordEntries.Add(entryBatch.Key, new List<PasswordEntryBatch.PasswordEntry>());
-                        foreach (PwnedPasswordsIngestionValue batchEntry in entryBatch.Value)
-                        {
-                            batch.PasswordEntries[entryBatch.Key].Add(new PasswordEntryBatch.PasswordEntry { SHA1Hash = batchEntry.SHA1Hash.ToUpperInvariant(), NTLMHash = batchEntry.NTLMHash.ToUpperInvariant(), Prevalence = batchEntry.Prevalence });
-                        }
-
+                        batch.PasswordEntries.Add(entryBatch.Key, entryBatch.Value);
                         num += entryBatch.Value.Count;
                     }
 

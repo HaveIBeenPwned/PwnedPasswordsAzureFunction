@@ -31,7 +31,7 @@ public class ProcessPwnedPasswordEntryBatch
             foreach (var prefixBatch in batch.PasswordEntries)
             {
                 List<Task> tasks = new(2 + prefixBatch.Value.Count);
-                foreach (PasswordEntryBatch.PasswordEntry item in prefixBatch.Value)
+                foreach (PwnedPasswordsIngestionValue item in prefixBatch.Value)
                 {
                     tasks.Add(IncrementHashEntry(batch, item));
                 }
@@ -42,14 +42,14 @@ public class ProcessPwnedPasswordEntryBatch
             }
         }
 
-        async Task IncrementHashEntry(PasswordEntryBatch batch, PasswordEntryBatch.PasswordEntry item, CancellationToken cancellationToken = default)
+        async Task IncrementHashEntry(PasswordEntryBatch batch, PwnedPasswordsIngestionValue item, CancellationToken cancellationToken = default)
         {
             while (!await _tableStorage.AddOrIncrementHashEntry(batch, item, cancellationToken).ConfigureAwait(false))
             {
             }
         }
 
-        async Task UpdateHashfile(PasswordEntryBatch batch, string prefix, List<PasswordEntryBatch.PasswordEntry> batchEntries, CancellationToken cancellationToken = default)
+        async Task UpdateHashfile(PasswordEntryBatch batch, string prefix, List<PwnedPasswordsIngestionValue> batchEntries, CancellationToken cancellationToken = default)
         {
             bool blobUpdated = false;
             while (!blobUpdated)
@@ -73,7 +73,7 @@ public class ProcessPwnedPasswordEntryBatch
         }
     }
 
-    private async Task<bool> ParseAndUpdateHashFile(PasswordEntryBatch batch, string prefix, List<PasswordEntryBatch.PasswordEntry> batchEntries, CancellationToken cancellationToken = default)
+    private async Task<bool> ParseAndUpdateHashFile(PasswordEntryBatch batch, string prefix, List<PwnedPasswordsIngestionValue> batchEntries, CancellationToken cancellationToken = default)
     {
         PwnedPasswordsFile blobFile = await _blobStorage.GetHashFileAsync(prefix, cancellationToken).ConfigureAwait(false);
 
