@@ -28,7 +28,7 @@ public class ProcessPwnedPasswordEntryBatch
         {
             // Let's set some activity tags and log scopes so we have event correlation in our logs!
             Activity.Current?.AddTag("SubscriptionId", batch.SubscriptionId).AddTag("TransactionId", batch.TransactionId);
-            List<Task> entryTasks = new();
+            List<Task> entryTasks = new(batch.PasswordEntries.Count);
             foreach (PasswordEntryBatch.PasswordEntry item in batch.PasswordEntries)
             {
                 entryTasks.Add(Task.Run(async () =>
