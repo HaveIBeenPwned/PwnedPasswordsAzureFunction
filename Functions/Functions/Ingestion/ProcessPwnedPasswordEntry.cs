@@ -110,7 +110,7 @@ public class ProcessPwnedPasswordEntryBatch
             while (hashLine != null)
             {
                 // Let's make sure we can parse this as a proper hash!
-                if (!string.IsNullOrEmpty(hashLine) && hashLine.Length >= 37 && hashLine[35] == ':' && int.TryParse(hashLine[36..], out int currentPrevalence))
+                if (!string.IsNullOrEmpty(hashLine) && hashLine.Length >= 37 && hashLine[35] == ':' && int.TryParse(hashLine[36..].Replace(",", ""), out int currentPrevalence) && currentPrevalence > 0)
                 {
                     hashes.Add(hashLine[..35], currentPrevalence);
                 }
