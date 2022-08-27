@@ -95,9 +95,9 @@ public sealed class TableStorage : ITableStorage
         return entries;
     }
 
-    public async Task<bool> AddOrIncrementHashEntry(PasswordEntryBatch batch, PasswordEntryBatch.PasswordEntry value, CancellationToken cancellationToken = default)
+    public async Task<bool> AddOrIncrementHashEntry(PasswordEntryBatch batch, PwnedPasswordsIngestionValue value, CancellationToken cancellationToken = default)
     {
-        string partitionKey = batch.Prefix;
+        string partitionKey = value.SHA1Hash[..5];
         string rowKey = value.SHA1Hash[5..];
 
         try

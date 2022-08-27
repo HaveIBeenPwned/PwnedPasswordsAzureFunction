@@ -11,18 +11,6 @@ public class PasswordEntryBatch
     public string SubscriptionId { get; set; } = "";
     [JsonPropertyName("trxId")]
     public string TransactionId { get; set; } = "";
-    [JsonPropertyName("prefix")]
-    public string Prefix { get; set; } = "";
     [JsonPropertyName("items")]
-    public List<PasswordEntry> PasswordEntries { get; set; } = new List<PasswordEntry>();
-
-    public class PasswordEntry
-    {
-        [JsonPropertyName("sha1")]
-        public string SHA1Hash { get; set; } = "";
-        [JsonPropertyName("ntlm")]
-        public string NTLMHash { get; set; } = "";
-        [JsonPropertyName("num")]
-        public int Prevalence { get; set; }
-    }
+    public Dictionary<string, List<PwnedPasswordsIngestionValue>> PasswordEntries { get; set; } = new Dictionary<string, List<PwnedPasswordsIngestionValue>>();
 }
