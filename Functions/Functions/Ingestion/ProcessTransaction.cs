@@ -63,20 +63,39 @@ public class ProcessTransaction
                         }
                     }
 
-                    foreach(KeyValuePair<string, List<PwnedPasswordsIngestionValue>> entryBatch in entries)
+                    int num = 0;
+                    var batch = new PasswordEntryBatch
                     {
-                        var batch = new PasswordEntryBatch
-                        {
-                            SubscriptionId = item.SubscriptionId,
-                            TransactionId = item.TransactionId,
-                            Prefix = entryBatch.Key
-                        };
+                        SubscriptionId = item.SubscriptionId,
+                        TransactionId = item.TransactionId,
+                    };
 
-                        foreach (PwnedPasswordsIngestionValue batchEntry in entryBatch.Value)
+                    foreach (KeyValuePair<string, List<PwnedPasswordsIngestionValue>> entryBatch in entries)
+                    {
+                        if (num > 300)
                         {
-                            batch.PasswordEntries.Add(new PasswordEntryBatch.PasswordEntry { SHA1Hash = batchEntry.SHA1Hash.ToUpperInvariant(), NTLMHash = batchEntry.NTLMHash.ToUpperInvariant(), Prevalence = batchEntry.Prevalence });
+                            var currentBatch = batch;
+                            await channel.Writer.WriteAsync(currentBatch);
+                            batch = new PasswordEntryBatch
+                            {
+                                SubscriptionId = item.SubscriptionId,
+                                TransactionId = item.TransactionId,
+                            };
+
+                            num = 0;
                         }
 
+                        batch.PasswordEntries.Add(entryBatch.Key, new List<PasswordEntryBatch.PasswordEntry>());
+                        foreach (PwnedPasswordsIngestionValue batchEntry in entryBatch.Value)
+                        {
+                            batch.PasswordEntries[entryBatch.Key].Add(new PasswordEntryBatch.PasswordEntry { SHA1Hash = batchEntry.SHA1Hash.ToUpperInvariant(), NTLMHash = batchEntry.NTLMHash.ToUpperInvariant(), Prevalence = batchEntry.Prevalence });
+                        }
+
+                        num += entryBatch.Value.Count;
+                    }
+
+                    if (num > 0)
+                    {
                         await channel.Writer.WriteAsync(batch);
                     }
                 }

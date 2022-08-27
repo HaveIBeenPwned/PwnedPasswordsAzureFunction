@@ -11,11 +11,9 @@ public class PasswordEntryBatch
     public string SubscriptionId { get; set; } = "";
     [JsonPropertyName("trxId")]
     public string TransactionId { get; set; } = "";
-    [JsonPropertyName("prefix")]
-    public string Prefix { get; set; } = "";
     [JsonPropertyName("items")]
-    public List<PasswordEntry> PasswordEntries { get; set; } = new List<PasswordEntry>();
-
+    public Dictionary<string, List<PasswordEntry>> PasswordEntries { get; set; } = new Dictionary<string, List<PasswordEntry>>();
+    
     public class PasswordEntry
     {
         [JsonPropertyName("sha1")]
