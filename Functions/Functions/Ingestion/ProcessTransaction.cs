@@ -53,8 +53,7 @@ public class ProcessTransaction
                         if (entry != null)
                         {
                             string prefix = entry.SHA1Hash.ToUpperInvariant()[..5];
-                            List<PwnedPasswordsIngestionValue> values = entries[prefix];
-                            if(values == null)
+                            if (!entries.TryGetValue(prefix, out List<PwnedPasswordsIngestionValue>? values))
                             {
                                 values = new List<PwnedPasswordsIngestionValue>();
                                 entries[prefix] = values;
