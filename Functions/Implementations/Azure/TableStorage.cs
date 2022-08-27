@@ -95,9 +95,9 @@ public sealed class TableStorage : ITableStorage
         return entries;
     }
 
-    public async Task<bool> AddOrIncrementHashEntry(string subscriptionId, string transactionId, PwnedPasswordsIngestionValue value, CancellationToken cancellationToken = default)
+    public async Task<bool> AddOrIncrementHashEntry(PasswordEntryBatch batch, PasswordEntryBatch.PasswordEntry value, CancellationToken cancellationToken = default)
     {
-        string partitionKey = value.SHA1Hash[..5];
+        string partitionKey = batch.Prefix;
         string rowKey = value.SHA1Hash[5..];
 
         try
@@ -108,13 +108,13 @@ public sealed class TableStorage : ITableStorage
                 PwnedPasswordEntity pwnedPassword = entityResponse.Value;
                 pwnedPassword.Prevalence += value.Prevalence;
                 await _hashDataTable.UpdateEntityAsync(pwnedPassword, pwnedPassword.ETag, cancellationToken: cancellationToken).ConfigureAwait(false);
-                _log.LogInformation("Subscription {SubscriptionId} updated SHA1 entry {SHA1} from {PrevalenceBefore} to {PrevalenceAfter} as part of transaction {TransactionId}", subscriptionId, value.SHA1Hash, pwnedPassword.Prevalence - value.Prevalence, pwnedPassword.Prevalence, transactionId);
+                _log.LogInformation("Subscription {SubscriptionId} updated SHA1 entry {SHA1} from {PrevalenceBefore} to {PrevalenceAfter} as part of transaction {TransactionId}", batch.SubscriptionId, value.SHA1Hash, pwnedPassword.Prevalence - value.Prevalence, pwnedPassword.Prevalence, batch.TransactionId);
             }
             // If the item doesn't exist
             catch (RequestFailedException e) when (e.Status == StatusCodes.Status404NotFound)
             {
                 await _hashDataTable.AddEntityAsync(new PwnedPasswordEntity { PartitionKey = partitionKey, RowKey = rowKey, NTLMHash = value.NTLMHash, Prevalence = value.Prevalence }, cancellationToken).ConfigureAwait(false);
-                _log.LogInformation("Subscription {SubscriptionId} added new SHA1 entry {SHA1} with {Prevalence} as part of transaction {TransactionId}", subscriptionId, value.SHA1Hash, value.Prevalence, transactionId);
+                _log.LogInformation("Subscription {SubscriptionId} added new SHA1 entry {SHA1} with {Prevalence} as part of transaction {TransactionId}", batch.SubscriptionId, value.SHA1Hash, value.Prevalence, batch.TransactionId);
             }
         }
         catch (RequestFailedException e) when (e.Status == StatusCodes.Status412PreconditionFailed || e.Status == StatusCodes.Status409Conflict)
