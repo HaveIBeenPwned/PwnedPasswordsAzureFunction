@@ -28,21 +28,26 @@ public class ProcessPwnedPasswordEntryBatch
         {
             // Let's set some activity tags and log scopes so we have event correlation in our logs!
             Activity.Current?.AddTag("SubscriptionId", batch.SubscriptionId).AddTag("TransactionId", batch.TransactionId);
-            List<Task> entryTasks = new(batch.PasswordEntries.Count);
+            List<Task> tasks = new(2 + batch.PasswordEntries.Count);
             foreach (PasswordEntryBatch.PasswordEntry item in batch.PasswordEntries)
             {
-                entryTasks.Add(Task.Run(async () =>
-                {
-                    while (!await _tableStorage.AddOrIncrementHashEntry(batch, item, cancellationToken).ConfigureAwait(false))
-                    {
-                    }
-                }, cancellationToken));
-
-                await Task.WhenAll(entryTasks).ConfigureAwait(false);
+                tasks.Add(IncrementHashEntry(batch, item, cancellationToken));
             }
 
-            await _tableStorage.MarkHashPrefixAsModified(batch.Prefix, cancellationToken).ConfigureAwait(false);
+            tasks.Add(_tableStorage.MarkHashPrefixAsModified(batch.Prefix, cancellationToken));
+            tasks.Add(UpdateHashfile(batch, cancellationToken));
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
 
+        async Task IncrementHashEntry(PasswordEntryBatch batch, PasswordEntryBatch.PasswordEntry item, CancellationToken cancellationToken)
+        {
+            while (!await _tableStorage.AddOrIncrementHashEntry(batch, item, cancellationToken).ConfigureAwait(false))
+            {
+            }
+        }
+
+        async Task UpdateHashfile(PasswordEntryBatch batch, CancellationToken cancellationToken)
+        {
             bool blobUpdated = false;
             while (!blobUpdated)
             {
