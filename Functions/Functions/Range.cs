@@ -33,9 +33,19 @@ public class Range
             return req.BadRequest("The hash format was not in a valid format");
         }
 
+        string mode = "sha1";
+        if (req.Query.TryGetValue("mode", out var queryMode))
+        {
+            mode = (string)queryMode switch
+            {
+                "ntlm" => "ntlm",
+                _ => "sha1",
+            };
+        }
+
         try
         {
-            PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), cancellationToken);
+            PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), mode, cancellationToken);
 
             return new FileStreamResult(entry.Content, "text/plain") { LastModified = entry.LastModified };
         }

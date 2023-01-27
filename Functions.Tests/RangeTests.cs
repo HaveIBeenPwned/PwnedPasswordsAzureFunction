@@ -27,7 +27,7 @@ public class RangeTests
         string validHashPrefix = "ABCDE";
         var returnHashFile = new PwnedPasswordsFile(Stream.Null, DateTimeOffset.UtcNow, "*");
         var mockStorage = new Mock<IFileStorage>();
-        mockStorage.Setup(s => s.GetHashFileAsync(validHashPrefix, CancellationToken.None)).ReturnsAsync(returnHashFile);
+        mockStorage.Setup(s => s.GetHashFileAsync(validHashPrefix, "sha1", CancellationToken.None)).ReturnsAsync(returnHashFile);
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
@@ -40,7 +40,7 @@ public class RangeTests
     public async Task Returns_notfound_if_hashprefix_doesnt_exist()
     {
         var mockStorage = new Mock<IFileStorage>();
-        mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new FileNotFoundException());
+        mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), "sha1", CancellationToken.None)).ThrowsAsync(new FileNotFoundException());
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
@@ -58,7 +58,7 @@ public class RangeTests
     public async Task Returns_bad_request_given_invalid_hashprefix(string invalidHashPrefix)
     {
         var mockStorage = new Mock<IFileStorage>();
-        mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), CancellationToken.None)).ReturnsAsync(default(PwnedPasswordsFile));
+        mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), "sha1",CancellationToken.None)).ReturnsAsync(default(PwnedPasswordsFile));
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
@@ -72,7 +72,7 @@ public class RangeTests
     public async Task Returns_internal_server_error_when_something_goes_wrong()
     {
         var mockStorage = new Mock<IFileStorage>();
-        mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), CancellationToken.None)).ThrowsAsync(new Exception());
+        mockStorage.Setup(s => s.GetHashFileAsync(It.IsAny<string>(), "sha1", CancellationToken.None)).ThrowsAsync(new Exception());
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
