@@ -6,9 +6,10 @@ public interface IFileStorage
     /// Get a stream to the file using the hash prefix
     /// </summary>
     /// <param name="hashPrefix">The hash prefix to use to lookup the file.</param>
+    /// <param name="mode">The mode to get, either "sha1" or "ntlm"</param>
     /// <returns>Returns a <see cref="PwnedPasswordsFile"/> with a stream to access the k-anonymity SHA-1 file, containing the last modified date and the file ETag.</returns>
     /// <exception cref="System.IO.FileNotFoundException" />
-    Task<PwnedPasswordsFile> GetHashFileAsync(string hashPrefix, CancellationToken cancellationToken = default);
+    Task<PwnedPasswordsFile> GetHashFileAsync(string hashPrefix, string mode, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates a hash file using the hash prefix.

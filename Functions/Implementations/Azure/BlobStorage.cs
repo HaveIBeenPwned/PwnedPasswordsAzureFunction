@@ -12,7 +12,8 @@ public class BlobStorage : IFileStorage
 {
     private static readonly RecyclableMemoryStreamManager s_manager = new(RecyclableMemoryStreamManager.DefaultBlockSize, RecyclableMemoryStreamManager.DefaultLargeBufferMultiple, RecyclableMemoryStreamManager.DefaultMaximumBufferSize);
 
-    private readonly BlobContainerClient _blobContainerClient;
+    private readonly BlobContainerClient _blobContainerSha1Client;
+    private readonly BlobContainerClient _blobContainerNtlmClient;
     private readonly BlobContainerClient _ingestionContainerClient;
     private readonly ILogger _log;
 
@@ -27,7 +28,8 @@ public class BlobStorage : IFileStorage
         BlobStorageOptions storageOptions = options.Value;
 
         _log = log;
-        _blobContainerClient = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName);
+        _blobContainerSha1Client = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName);
+        _blobContainerNtlmClient = serviceClient.GetBlobContainerClient($"ntlm{storageOptions.BlobContainerName}");
         _ingestionContainerClient = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName + "ingestion");
         _ingestionContainerClient.CreateIfNotExists();
     }
@@ -43,10 +45,10 @@ public class BlobStorage : IFileStorage
         return result.Value.Content;
     }
 
-    public async Task<PwnedPasswordsFile> GetHashFileAsync(string hashPrefix, CancellationToken cancellationToken = default)
+    public async Task<PwnedPasswordsFile> GetHashFileAsync(string hashPrefix, string mode, CancellationToken cancellationToken = default)
     {
         string fileName = $"{hashPrefix}.txt";
-        BlobClient blobClient = _blobContainerClient.GetBlobClient(fileName);
+        BlobClient blobClient = mode == "sha1" ? _blobContainerSha1Client.GetBlobClient(fileName) : _blobContainerNtlmClient.GetBlobClient(fileName);
 
         try
         {
@@ -69,7 +71,7 @@ public class BlobStorage : IFileStorage
     public async Task<bool> UpdateHashFileAsync(string hashPrefix, SortedDictionary<string, int> hashes, string etag, CancellationToken cancellationToken = default)
     {
         string fileName = $"{hashPrefix}.txt";
-        BlobClient blobClient = _blobContainerClient.GetBlobClient(fileName);
+        BlobClient blobClient = _blobContainerSha1Client.GetBlobClient(fileName);
 
         using (MemoryStream memStream = s_manager.GetStream())
         {

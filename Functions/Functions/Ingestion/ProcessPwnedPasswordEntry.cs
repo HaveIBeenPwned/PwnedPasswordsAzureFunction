@@ -75,7 +75,7 @@ public class ProcessPwnedPasswordEntryBatch
 
     private async Task<bool> ParseAndUpdateHashFile(PasswordEntryBatch batch, string prefix, List<PwnedPasswordsIngestionValue> batchEntries, CancellationToken cancellationToken = default)
     {
-        PwnedPasswordsFile blobFile = await _blobStorage.GetHashFileAsync(prefix, cancellationToken).ConfigureAwait(false);
+        PwnedPasswordsFile blobFile = await _blobStorage.GetHashFileAsync(prefix, "sha1", cancellationToken).ConfigureAwait(false);
 
         // Let's read the existing blob into a sorted dictionary so we can write it back in order!
         SortedDictionary<string, int> hashes = ParseHashFile(blobFile);
