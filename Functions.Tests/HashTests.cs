@@ -21,7 +21,7 @@ public class HashTests
     [InlineData("hunter2", "F3BBBD66A63D4BF1747940578EC3D0103530E21D")]
     public void CreateSHA1Hash(string input, string expected)
     {
-        Assert.Equal(expected, Hash.CreateSHA1Hash(input));
+        Assert.Equal(expected, HashExtensions.CreateSHA1Hash(input));
     }
 
     [Theory]
@@ -30,7 +30,7 @@ public class HashTests
     [InlineData("ThisIsAReallyLongPasswordThatShouldRequireMoreThanSixtyFourBytesToHashProperlyButShouldStillWork", "1AECCB344D30AB6DFA13A5CA7FB75C18")]
     public void CreateNTLMHash(string input, string expected)
     {
-        Assert.Equal(expected, Hash.CreateNTLMHash(input));
+        Assert.Equal(expected, HashExtensions.CreateNTLMHash(input));
     }
 
     [Theory]

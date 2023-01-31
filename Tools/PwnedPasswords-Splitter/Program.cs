@@ -28,7 +28,7 @@ for(int n = 0; n < 16; n++)
 }
 
 
-await foreach (var entry in HashEntry.ParseHashEntries(PipeReader.Create(file)))
+await foreach (var entry in HashEntry.ParseTextHashEntries(16, PipeReader.Create(file)))
 {
     entry.Hash[..3].CopyTo(prefix);
     prefix.Span[2] = (byte)(prefix.Span[2] & 0xF0);
@@ -58,11 +58,11 @@ async Task WriteEntries(string file, List<HashEntry> entries)
         using HashEntry entry = entries[i];
         if (i == entries.Count - 1)
         {
-            stringBuilder.Append($"{Hash.ConvertToHex(entry.Hash.Span)[5..]}:{entry.Prevalence}");
+            stringBuilder.Append($"{HashExtensions.ConvertToHex(entry.Hash.Span)[5..]}:{entry.Prevalence}");
         }
         else
         {
-            stringBuilder.Append($"{Hash.ConvertToHex(entry.Hash.Span)[5..]}:{entry.Prevalence}\r\n");
+            stringBuilder.Append($"{HashExtensions.ConvertToHex(entry.Hash.Span)[5..]}:{entry.Prevalence}\r\n");
         }
     }
 
@@ -85,7 +85,7 @@ async Task WriteBinaryEntries(string file, List<HashEntry> entries)
     for (int i = 0; i < entries.Count; i++)
     {
         using HashEntry entry = entries[i];
-        entry.WriteTo(writer, true);
+        entry.WriteAsBinaryTo(writer, true);
     }
 
     writer.Complete();

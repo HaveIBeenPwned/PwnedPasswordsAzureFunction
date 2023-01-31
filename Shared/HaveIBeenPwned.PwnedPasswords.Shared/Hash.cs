@@ -8,7 +8,7 @@ namespace HaveIBeenPwned.PwnedPasswords;
 /// <summary>
 /// Hash utility functions to create and validate hashes
 /// </summary>
-public static class Hash
+public static class HashExtensions
 {
     private static readonly char[] s_hexChars = new[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
@@ -39,18 +39,23 @@ public static class Hash
         return ConvertToHex(ntlmHash);
     }
 
+    public static string ConvertToHex(this ReadOnlyMemory<byte> hash) => hash.Span.ConvertToHex();
     public static string ConvertToHex(this ReadOnlySpan<byte> hash)
     {
         Span<char> hashChars = stackalloc char[hash.Length * 2];
+        hash.ConvertToHex(hashChars);
+        return new string(hashChars);
+    }
+
+    public static void ConvertToHex(this ReadOnlySpan<byte> hash, Span<char> output)
+    {
         for (int i = 0; i < hash.Length; i++)
         {
             int hashIndex = i * 2;
             byte x = hash[i];
-            hashChars[hashIndex] = s_hexChars[(x >> 4) & 0xF];
-            hashChars[hashIndex + 1] = s_hexChars[(x) & 0x0F];
+            output[hashIndex] = s_hexChars[(x >> 4) & 0xF];
+            output[hashIndex + 1] = s_hexChars[(x) & 0x0F];
         }
-
-        return new string(hashChars);
     }
 
     /// <summary>
@@ -58,10 +63,9 @@ public static class Hash
     /// </summary>
     /// <param name="input">Input hash to check</param>
     /// <returns>Boolean representing if the input is valid or not</returns>
-    public static bool IsStringSHA1Hash(this ReadOnlySpan<char> input) => input.IsHexStringOfLength(40);
-    public static bool IsStringSHA1Hash(this string input) => input.AsSpan().IsHexStringOfLength(40);
+    public static bool IsStringSHA1Hash(this string input) => input.IsHexStringOfLength(40);
 
-    public static bool IsHexStringOfLength(this string input, int requiredLength) => IsHexStringOfLength(input.AsSpan(), requiredLength);
+    public static bool IsHexStringOfLength(this string input, int requiredLength) => input.AsSpan().IsHexStringOfLength(requiredLength);
 
     public static bool IsHexStringOfLength(this ReadOnlySpan<char> input, int requiredLength)
     {
@@ -86,8 +90,7 @@ public static class Hash
     /// </summary>
     /// <param name="input">Input hash to check</param>
     /// <returns>Boolean representing if the input is valid or not</returns>
-    public static bool IsStringNTLMHash(this ReadOnlySpan<char> input) => input.IsHexStringOfLength(32);
-    public static bool IsStringNTLMHash(this string input) => input.AsSpan().IsHexStringOfLength(32);
+    public static bool IsStringNTLMHash(this string input) => input.IsHexStringOfLength(32);
 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -111,7 +111,7 @@ async Task ParseAndUpdateHashFile(string prefix, List<PwnedPasswordsIngestionVal
 
         foreach (var item in entries)
         {
-            item.Value.WriteTo(pipeWriter, true);
+            item.Value.WriteAsBinaryTo(pipeWriter, true);
         }
 
         await pipeWriter.CompleteAsync();

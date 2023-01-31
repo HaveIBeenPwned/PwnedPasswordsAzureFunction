@@ -43,8 +43,8 @@ while (!inputReader.EndOfStream)
         }
 
         outputWriter.WriteStartObject();
-        outputWriter.WriteString(ntlmName, Hash.CreateNTLMHash(line));
-        outputWriter.WriteString(sha1Name, Hash.CreateSHA1Hash(line));
+        outputWriter.WriteString(ntlmName, HashExtensions.CreateNTLMHash(line));
+        outputWriter.WriteString(sha1Name, HashExtensions.CreateSHA1Hash(line));
         outputWriter.WriteNumber(numName, prevalence);
         outputWriter.WriteEndObject();
         numPasswords++;
