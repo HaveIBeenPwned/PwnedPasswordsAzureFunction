@@ -3,7 +3,6 @@
 
 using System.Collections.Generic;
 using System.IO;
-using System.Security.Policy;
 
 using HaveIBeenPwned.PwnedPasswords.Implementations.Azure;
 

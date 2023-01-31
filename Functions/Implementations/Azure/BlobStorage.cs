@@ -29,7 +29,7 @@ public class BlobStorage : IFileStorage
 
         _log = log;
         _blobContainerSha1Client = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName);
-        _blobContainerNtlmClient = serviceClient.GetBlobContainerClient($"ntlm{storageOptions.BlobContainerName}");
+        _blobContainerNtlmClient = serviceClient.GetBlobContainerClient($"ntlmbin{storageOptions.BlobContainerName}");
         _ingestionContainerClient = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName + "ingestion");
         _ingestionContainerClient.CreateIfNotExists();
     }
@@ -47,7 +47,7 @@ public class BlobStorage : IFileStorage
 
     public async Task<PwnedPasswordsFile> GetHashFileAsync(string hashPrefix, string mode, CancellationToken cancellationToken = default)
     {
-        string fileName = $"{hashPrefix}.txt";
+        string fileName = $"{hashPrefix}.{(mode == "sha1" ? "txt" : "bin")}";
         BlobClient blobClient = mode == "sha1" ? _blobContainerSha1Client.GetBlobClient(fileName) : _blobContainerNtlmClient.GetBlobClient(fileName);
 
         try

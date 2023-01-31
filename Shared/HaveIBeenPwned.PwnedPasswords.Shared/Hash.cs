@@ -39,7 +39,7 @@ public static class Hash
         return ConvertToHex(ntlmHash);
     }
 
-    private static string ConvertToHex(ReadOnlySpan<byte> hash)
+    public static string ConvertToHex(this ReadOnlySpan<byte> hash)
     {
         Span<char> hashChars = stackalloc char[hash.Length * 2];
         for (int i = 0; i < hash.Length; i++)
@@ -58,9 +58,12 @@ public static class Hash
     /// </summary>
     /// <param name="input">Input hash to check</param>
     /// <returns>Boolean representing if the input is valid or not</returns>
-    public static bool IsStringSHA1Hash(this string input) => input.IsHexStringOfLength(40);
+    public static bool IsStringSHA1Hash(this ReadOnlySpan<char> input) => input.IsHexStringOfLength(40);
+    public static bool IsStringSHA1Hash(this string input) => input.AsSpan().IsHexStringOfLength(40);
 
-    public static bool IsHexStringOfLength(this string input, int requiredLength)
+    public static bool IsHexStringOfLength(this string input, int requiredLength) => IsHexStringOfLength(input.AsSpan(), requiredLength);
+
+    public static bool IsHexStringOfLength(this ReadOnlySpan<char> input, int requiredLength)
     {
         if (input.Length == 0 || input.Length != requiredLength)
         {
@@ -83,8 +86,22 @@ public static class Hash
     /// </summary>
     /// <param name="input">Input hash to check</param>
     /// <returns>Boolean representing if the input is valid or not</returns>
-    public static bool IsStringNTLMHash(this string input) => input.IsHexStringOfLength(32);
+    public static bool IsStringNTLMHash(this ReadOnlySpan<char> input) => input.IsHexStringOfLength(32);
+    public static bool IsStringNTLMHash(this string input) => input.AsSpan().IsHexStringOfLength(32);
+
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsHex(this char x) => (x >= '0' && x <= '9') || (x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F');
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static byte ToByte(this char x)
+    {
+        return x switch
+        {
+            >= '0' and <= '9' => (byte)((byte)x - 48),
+            >= 'A' and <= 'F' => (byte)((byte)x - 55),
+            >= 'a' and <= 'f' => (byte)((byte)x - 87),
+            _ => throw new ArgumentException($"{x} is not a valid hex character.")
+        };
+    }
 }
