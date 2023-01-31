@@ -1,4 +1,6 @@
-﻿namespace HaveIBeenPwned.PwnedPasswords.Functions;
+﻿using System.IO.Pipelines;
+
+namespace HaveIBeenPwned.PwnedPasswords.Functions;
 
 /// <summary>
 /// Main entry point for Pwned Passwords
@@ -47,7 +49,30 @@ public class Range
         {
             PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), mode, cancellationToken);
 
-            return new FileStreamResult(entry.Content, "text/plain") { LastModified = entry.LastModified };
+            if (mode == "sha1")
+            {
+                return new FileStreamResult(entry.Content, "text/plain") { LastModified = entry.LastModified };
+            }
+            else
+            {
+                var pipe = new Pipe();
+                var pipeReader = PipeReader.Create(entry.Content);
+                int i = 0;
+                int numEntries = (int)entry.Content.Length / 18;
+                await foreach (HashEntry item in HashEntry.ParseBinaryHashEntries(hashPrefix, 16, pipeReader))
+                {
+                    i++;
+                    item.WriteTextTo(pipe.Writer, true);
+                    if (i != numEntries)
+                    {
+                        Encoding.UTF8.GetBytes("\r\n", pipe.Writer);
+                    }
+                }
+                await pipe.Writer.FlushAsync();
+                await pipe.Writer.CompleteAsync();
+
+                return new FileStreamResult(pipe.Reader.AsStream(), "text/plain") { LastModified = entry.LastModified };
+            }
         }
         catch (FileNotFoundException)
         {
