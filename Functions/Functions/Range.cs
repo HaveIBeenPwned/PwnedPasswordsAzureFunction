@@ -36,7 +36,7 @@ public class Range
         }
 
         string mode = "sha1";
-        if (req.Query.TryGetValue("mode", out var queryMode))
+        if (req.Query.TryGetValue("mode", out Microsoft.Extensions.Primitives.StringValues queryMode))
         {
             mode = (string)queryMode switch
             {

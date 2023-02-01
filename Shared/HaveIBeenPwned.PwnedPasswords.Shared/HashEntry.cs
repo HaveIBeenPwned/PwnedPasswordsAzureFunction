@@ -3,15 +3,9 @@
 
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Pipelines;
-using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 namespace HaveIBeenPwned.PwnedPasswords
@@ -234,7 +228,7 @@ namespace HaveIBeenPwned.PwnedPasswords
             await pipeReader.CompleteAsync().ConfigureAwait(false);
         }
 
-        public static async IAsyncEnumerable<HashEntry> ParseTextHashEntries(string prefix, int hashSizeInBytes, PipeReader pipeReader)
+        public static async IAsyncEnumerable<HashEntry> ParseTextHashEntries(string prefix, PipeReader pipeReader)
         {
             while (true)
             {
@@ -259,7 +253,7 @@ namespace HaveIBeenPwned.PwnedPasswords
 
             await pipeReader.CompleteAsync().ConfigureAwait(false);
         }
-        public static async IAsyncEnumerable<HashEntry> ParseTextHashEntries(int hashSizeInBytes, PipeReader pipeReader)
+        public static async IAsyncEnumerable<HashEntry> ParseTextHashEntries(PipeReader pipeReader)
         {
             while (true)
             {

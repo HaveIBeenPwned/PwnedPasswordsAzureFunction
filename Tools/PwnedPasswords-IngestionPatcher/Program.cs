@@ -1,12 +1,9 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Collections.Concurrent;
 using System.IO.Pipelines;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
 using System.Threading.Channels;
 
 using HaveIBeenPwned.PwnedPasswords;
@@ -16,7 +13,7 @@ Console.WriteLine("Hello, World!");
 Dictionary<string, List<HashEntry>> entries = new ();
 Channel<Task> workers = Channel.CreateBounded<Task>(64);
 
-foreach (var ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ingested\"))
+foreach (string ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ingested\"))
 {
     using (Stream stream = File.OpenRead(ingestionFile))
     {
@@ -50,7 +47,7 @@ var task = Task.Run(async () =>
 {
     DateTimeOffset lastRun = DateTimeOffset.UtcNow;
     int num = 0;
-    await foreach (var task in workers.Reader.ReadAllAsync())
+    await foreach (System.Threading.Tasks.Task task in workers.Reader.ReadAllAsync())
     {
         await task;
         num++;
@@ -62,35 +59,35 @@ var task = Task.Run(async () =>
     }
 });
 
-foreach (var entry in entries)
+foreach (KeyValuePair<string, List<HashEntry>> entry in entries)
 {
     await workers.Writer.WriteAsync(ParseAndUpdateHashFile(entry.Key, entry.Value));
 }
 workers.Writer.TryComplete();
 await task;
 
-async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEntries)
+static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEntries)
 {
     try
     {
         SortedSet<HashEntry> entries = new();
 
         // Let's read the existing blob into a sorted dictionary so we can write it back in order!
-        var file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\binhashes\{prefix}.bin", new FileStreamOptions()
+        FileStream file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\binhashes\{prefix}.bin", new FileStreamOptions()
         {
             Access = FileAccess.ReadWrite,
             Mode = FileMode.Open,
             Options = FileOptions.Asynchronous | FileOptions.SequentialScan
         });
         var pipeReader = PipeReader.Create(file);
-        await foreach (var entry in HashEntry.ParseBinaryHashEntries(prefix, 16, pipeReader))
+        await foreach (HashEntry entry in HashEntry.ParseBinaryHashEntries(prefix, 16, pipeReader))
         {
             entries.Add(entry);
         }
 
         // We now have a sorted dictionary with the hashes for this prefix.
         // Let's add or update the suffixes with the prevalence counts.
-        foreach (var item in batchEntries)
+        foreach (HashEntry item in batchEntries)
         {
             if (entries.TryGetValue(item, out HashEntry value))
             {
@@ -112,7 +109,7 @@ async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEntries)
         });
         var pipeWriter = PipeWriter.Create(file);
 
-        foreach (var item in entries)
+        foreach (HashEntry item in entries)
         {
             item.WriteAsBinaryTo(pipeWriter, true);
         }
