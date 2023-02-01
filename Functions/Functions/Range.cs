@@ -55,6 +55,7 @@ public class Range
             }
             else
             {
+                // Reading the NTLM hashes as a binary blob and returning the data in clear-text.
                 var pipe = new Pipe();
                 var pipeReader = PipeReader.Create(entry.Content);
                 int i = 0;

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -31,6 +32,61 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
 01306E7C20BE7E0B28B0E8D87EFC634479B:8
 0152C0E9B6DAFEB1D101A541D801095E22B:1
 016C6C075173C163757BCEA8139D4CC69CF:15";
+
+        [Fact]
+        public void CanBePutIntoSortedList()
+        {
+            SortedList<HashEntry, HashEntry> entries = new SortedList<HashEntry, HashEntry>();
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:15", out HashEntry entry));
+            Assert.True(HashEntry.TryParseFromText("000000005AD76BD555C1D6D771DE417A4B87E4B4:10", out HashEntry entry2));
+            entries.Add(entry, entry);
+            entries.Add(entry2, entry2);
+            Assert.Equal(entry2, entries.Keys[0]);
+            Assert.Equal(entry, entries.Keys[1]);
+        }
+
+        [Fact]
+        public void CanBePutIntoSortedListWithHashKeyAndPrevalenceValue()
+        {
+            SortedList<ReadOnlyMemory<byte>, int> entries = new(HashEntry.HashComparer);
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:15", out HashEntry entry));
+            Assert.True(HashEntry.TryParseFromText("000000005AD76BD555C1D6D771DE417A4B87E4B4:10", out HashEntry entry2));
+            entries.Add(entry.Hash, entry.Prevalence);
+            entries.Add(entry2.Hash, entry2.Prevalence);
+            Assert.Equal(entry2.Hash, entries.Keys[0]);
+            Assert.Equal(entry.Hash, entries.Keys[1]);
+        }
+
+        [Fact]
+        public void CanBePutIntoSortedSet()
+        {
+            SortedSet<HashEntry> entries = new SortedSet<HashEntry>();
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:15", out HashEntry entry));
+            Assert.True(HashEntry.TryParseFromText("000000005AD76BD555C1D6D771DE417A4B87E4B4:10", out HashEntry entry2));
+            Assert.True(entries.Add(entry));
+            Assert.True(entries.Add(entry2));
+            var list = entries.ToList();
+            Assert.Equal(entry2, list[0]);
+            Assert.Equal(entry, list[1]);
+        }
+
+        [Fact]
+        public void IncrementingPrevalenceInSortedSetChangesValues()
+        {
+            SortedSet<HashEntry> entries = new SortedSet<HashEntry>();
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:15", out HashEntry entry));
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:10", out HashEntry entry2));
+            Assert.True(entries.Add(entry));
+            Assert.True(entries.TryGetValue(entry2, out HashEntry entry3));
+            Assert.StrictEqual(entry, entry3);
+            Assert.NotStrictEqual(entry, entry2);
+            Assert.Equal(10, entry2.Prevalence);
+            Assert.Equal(15, entry3.Prevalence);
+            Assert.Equal(entry.Prevalence, entry3.Prevalence);
+            entry.Prevalence += entry2.Prevalence;
+            var list = entries.ToList();
+            Assert.Equal(25, list[0].Prevalence);
+        }
 
         [Theory]
         [InlineData(new object[] {"000000:123", new byte[] { 0x00, 0x00, 0x00 }, 123})]

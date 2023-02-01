@@ -13,7 +13,7 @@ using HaveIBeenPwned.PwnedPasswords;
 
 Console.WriteLine("Hello, World!");
 
-Dictionary<string, List<PwnedPasswordsIngestionValue>> entries = new Dictionary<string, List<PwnedPasswordsIngestionValue>>();
+Dictionary<string, List<HashEntry>> entries = new ();
 Channel<Task> workers = Channel.CreateBounded<Task>(64);
 
 foreach (var ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ingested\"))
@@ -27,13 +27,17 @@ foreach (var ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\
             {
                 entry.NTLMHash = entry.NTLMHash.ToUpperInvariant();
                 string prefix = entry.NTLMHash[..5];
-                if (!entries.TryGetValue(prefix, out List<PwnedPasswordsIngestionValue>? values))
+                if (!entries.TryGetValue(prefix, out List<HashEntry>? values))
                 {
-                    values = new List<PwnedPasswordsIngestionValue>();
+                    values = new List<HashEntry>();
                     entries[prefix] = values;
                 }
 
-                values.Add(entry);
+                if (HashEntry.TryParseFromText(entry.NTLMHash, entry.Prevalence, out HashEntry hashEntry))
+                {
+                    values.Add(hashEntry);
+                }
+
                 count++;
             }
         }
@@ -65,11 +69,11 @@ foreach (var entry in entries)
 workers.Writer.TryComplete();
 await task;
 
-async Task ParseAndUpdateHashFile(string prefix, List<PwnedPasswordsIngestionValue> batchEntries)
+async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEntries)
 {
     try
     {
-        SortedDictionary<string, HashEntry> entries = new();
+        SortedSet<HashEntry> entries = new();
 
         // Let's read the existing blob into a sorted dictionary so we can write it back in order!
         var file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\binhashes\{prefix}.bin", new FileStreamOptions()
@@ -81,21 +85,20 @@ async Task ParseAndUpdateHashFile(string prefix, List<PwnedPasswordsIngestionVal
         var pipeReader = PipeReader.Create(file);
         await foreach (var entry in HashEntry.ParseBinaryHashEntries(prefix, 16, pipeReader))
         {
-            entries.Add(entry.Hash.Span.ConvertToHex()[5..], entry);
+            entries.Add(entry);
         }
 
         // We now have a sorted dictionary with the hashes for this prefix.
         // Let's add or update the suffixes with the prevalence counts.
         foreach (var item in batchEntries)
         {
-            var ntlmHash = item.NTLMHash[5..];
-            if (entries.TryGetValue(ntlmHash, out HashEntry value))
+            if (entries.TryGetValue(item, out HashEntry value))
             {
                 value.Prevalence += item.Prevalence;
             }
             else
             {
-                entries.Add(ntlmHash, new HashEntry(Convert.FromHexString(item.NTLMHash), item.Prevalence));
+                entries.Add(item);
             }
         }
 
@@ -111,7 +114,7 @@ async Task ParseAndUpdateHashFile(string prefix, List<PwnedPasswordsIngestionVal
 
         foreach (var item in entries)
         {
-            item.Value.WriteAsBinaryTo(pipeWriter, true);
+            item.WriteAsBinaryTo(pipeWriter, true);
         }
 
         await pipeWriter.CompleteAsync();

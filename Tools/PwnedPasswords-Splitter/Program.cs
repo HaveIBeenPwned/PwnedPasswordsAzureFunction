@@ -8,74 +8,70 @@ using System.Threading.Channels;
 
 using HaveIBeenPwned.PwnedPasswords;
 
-ConcurrentStack<StringBuilder> stringBuilders = new ConcurrentStack<StringBuilder>();
 Channel<(string, List<HashEntry>)> fileWriters = Channel.CreateBounded<(string, List<HashEntry>)>(new BoundedChannelOptions(64) { AllowSynchronousContinuations = false, SingleReader = true, SingleWriter = true });
 using var file = File.Open(@"C:\Users\stefa\Downloads\pwned-passwords-ntlm-ordered-by-hash-v8\pwned-passwords-ntlm-ordered-by-hash-v8.txt", new FileStreamOptions() { Access = FileAccess.Read, Mode = FileMode.Open, Options = FileOptions.SequentialScan | FileOptions.Asynchronous });
-byte[] currentPrefix = new byte[3];
-List<HashEntry> entries = new List<HashEntry>();
-Memory<byte> prefix = new byte[3];
+List<HashEntry> entries = new List<HashEntry>(1000);
+uint currentPrefix = 0;
 int i = 0;
 List<Task> workers = new List<Task>();
 for(int n = 0; n < 16; n++)
 {
     workers.Add(Task.Run(async () =>
     {
-        await foreach ((string File, List<HashEntry> Entries) item in fileWriters.Reader.ReadAllAsync())
+        await foreach ((string File, List<HashEntry> Entries) item in fileWriters.Reader.ReadAllAsync().ConfigureAwait(false))
         {
-            await WriteBinaryEntries(item.File, item.Entries);
+            await WriteEntries(item.File, item.Entries).ConfigureAwait(false);
         }
     }));
 }
+var pipe = new Pipe();
+_ = file.CopyToAsync(pipe.Writer);
 
-
-await foreach (var entry in HashEntry.ParseTextHashEntries(16, PipeReader.Create(file)))
+await foreach (var entry in HashEntry.ParseTextHashEntries(16, pipe.Reader).ConfigureAwait(false))
 {
-    entry.Hash[..3].CopyTo(prefix);
-    prefix.Span[2] = (byte)(prefix.Span[2] & 0xF0);
-    if (!prefix.Span.SequenceEqual(currentPrefix))
+    uint prefix = (BinaryPrimitives.ReadUInt32BigEndian(entry.Hash.Span) >> 12);
+    if (prefix != currentPrefix)
     {
-        await fileWriters.Writer.WriteAsync(($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\binhashes\{Convert.ToHexString(currentPrefix)[..5]}.bin", entries));
+        await fileWriters.Writer.WriteAsync(($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\hashes\{Convert.ToHexString(entries[0].Hash.Slice(0, 3).Span)[..5]}.txt", entries)).ConfigureAwait(false); ;
         entries = new List<HashEntry>(1000);
-        prefix.CopyTo(currentPrefix);
+        currentPrefix = prefix;
     }
 
     entries.Add(entry);
 }
 
+await fileWriters.Writer.WriteAsync(($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\hashes\{Convert.ToHexString(entries[0].Hash.Slice(0,3).Span)[..5]}.txt", entries)).ConfigureAwait(false);
 fileWriters.Writer.TryComplete();
-await Task.WhenAll(workers);
+await Task.WhenAll(workers).ConfigureAwait(false);
 
 async Task WriteEntries(string file, List<HashEntry> entries)
 {
-    if(!stringBuilders.TryPop(out StringBuilder? stringBuilder))
-    {
-        stringBuilder = new StringBuilder();
-    }
-
-    using var fileWriter = File.Open(file, new FileStreamOptions() { Access = FileAccess.Write, Mode = FileMode.Create, Options = FileOptions.Asynchronous });
+    var pipe = new Pipe();
+    using var fileWriter = File.Open(file, new FileStreamOptions() { Access = FileAccess.Write, Mode = FileMode.Create, Options = FileOptions.Asynchronous, BufferSize = 1024 * 16 });
+    var writeTask = pipe.Reader.CopyToAsync(fileWriter);
+    var pipeWriter = pipe.Writer;
     for (int i = 0; i < entries.Count; i++)
     {
         using HashEntry entry = entries[i];
-        if (i == entries.Count - 1)
+        entry.WriteTextTo(pipeWriter, true);
+        if (i != entries.Count - 1)
         {
-            stringBuilder.Append($"{HashExtensions.ConvertToHex(entry.Hash.Span)[5..]}:{entry.Prevalence}");
+            var mem = pipeWriter.GetMemory(2);
+            mem.Span[0] = (byte)'\r';
+            mem.Span[1] = (byte)'\n';
+            pipeWriter.Advance(2);
         }
-        else
-        {
-            stringBuilder.Append($"{HashExtensions.ConvertToHex(entry.Hash.Span)[5..]}:{entry.Prevalence}\r\n");
-        }
+
+        await pipeWriter.FlushAsync().ConfigureAwait(false); ;
     }
 
-    await fileWriter.WriteAsync(Encoding.UTF8.GetBytes(stringBuilder.ToString()));
-    await fileWriter.FlushAsync().ConfigureAwait(false);
+    await pipeWriter.CompleteAsync().ConfigureAwait(false); ;
+    await writeTask.ConfigureAwait(false);
 
     if (i++ % 100 == 0)
     {
         Console.WriteLine($"Wrote file {file}");
     }
-
-    stringBuilder.Clear();
-    stringBuilders.Push(stringBuilder);
 }
 
 async Task WriteBinaryEntries(string file, List<HashEntry> entries)
@@ -89,7 +85,7 @@ async Task WriteBinaryEntries(string file, List<HashEntry> entries)
     }
 
     writer.Complete();
-    await writer.FlushAsync();
+    await writer.FlushAsync().ConfigureAwait(false);
 
     if (i++ % 100 == 0)
     {

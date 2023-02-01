@@ -3,20 +3,23 @@
 
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Pipelines;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 namespace HaveIBeenPwned.PwnedPasswords
 {
-    public struct HashEntry : IDisposable
+    public struct HashEntry : IDisposable, IComparable<HashEntry>, IEquatable<HashEntry>, IComparable<ReadOnlyMemory<byte>>, IComparer<ReadOnlyMemory<byte>>
     {
-        private static ConcurrentStack<StringBuilder> s_stringbuilders = new ConcurrentStack<StringBuilder>();
-        private static object s_lock = new object();
-        private Memory<byte> _data = Memory<byte>.Empty;
+        public static IComparer<ReadOnlyMemory<byte>> HashComparer { get; } = default(HashEntry);
+        private readonly Memory<byte> _data = Memory<byte>.Empty;
 
         public ReadOnlyMemory<byte> Hash => _data.Slice(0, _data.Length - 4);
         public int Prevalence
@@ -51,6 +54,37 @@ namespace HaveIBeenPwned.PwnedPasswords
             Span<char> chars = stackalloc char[textLength];
             int numChars = Encoding.ASCII.GetChars(bytes, chars);
             return TryParseFromText(chars.Slice(0, numChars), out entry);
+        }
+
+        public static bool TryParseFromText(ReadOnlySpan<char> hashtext, int prevalence, out HashEntry hashEntry)
+        {
+            hashEntry = default;
+            if (hashtext.IsEmpty)
+            {
+                return false;
+            }
+
+            if (hashtext.Length % 2 == 1)
+            {
+                return false;
+            }
+
+            int hexLengthInBytes = hashtext.Length / 2;
+            Span<byte> bytes = stackalloc byte[hexLengthInBytes];
+            for (int i = 0; i < hexLengthInBytes; i++)
+            {
+                try
+                {
+                    bytes[i] = (byte)((hashtext[i * 2].ToByte() << 4) | hashtext[i * 2 + 1].ToByte());
+                }
+                catch (ArgumentException)
+                {
+                    return false;
+                }
+            }
+
+            hashEntry = new HashEntry(bytes, prevalence);
+            return true;
         }
 
         public static bool TryParseFromText(ReadOnlySpan<char> hashtext, out HashEntry hashEntry)
@@ -271,35 +305,16 @@ namespace HaveIBeenPwned.PwnedPasswords
 
         public void WriteTextTo<T>(T bufferWriter, bool omitPrefix) where T : IBufferWriter<byte>
         {
-            if (!s_stringbuilders.TryPop(out StringBuilder? stringBuilder))
-            {
-                stringBuilder = new StringBuilder();
-            }
-
-
-            if (omitPrefix)
-            {
-                Span<char> hashChars = stackalloc char[(Hash.Length - 2) * 2];
-                Span<byte> omittedPrefixData = stackalloc byte[Hash.Length - 2];
-                Hash.Span[2..].CopyTo(omittedPrefixData);
-                omittedPrefixData[0] = (byte)(omittedPrefixData[0] & 0x0F);
-                HashExtensions.ConvertToHex(omittedPrefixData, hashChars);
-                stringBuilder.Append(hashChars[1..]);
-            }
-            else
-            {
-                Span<char> hashChars = stackalloc char[Hash.Length * 2];
-                Hash.Span.ConvertToHex(hashChars);
-                stringBuilder.Append(hashChars);
-            }
-
-            stringBuilder.Append(':');
-            stringBuilder.Append(CultureInfo.InvariantCulture, $"{Prevalence}");
-            Encoding.ASCII.GetBytes(stringBuilder.ToString(), bufferWriter);
-
-            stringBuilder.Clear();
-            s_stringbuilders.Push(stringBuilder);
+            int hashLength = Hash.Length * 2;
+            Span<char> hashChars = stackalloc char[hashLength + 11];
+            Hash.Span.ConvertToHex(hashChars);
+            hashChars[hashLength] = ':';
+            Prevalence.TryFormat(hashChars.Slice(hashLength + 1), out int intSize, provider: CultureInfo.InvariantCulture);
+            Span<char> finalChars = hashChars.Slice(omitPrefix ? 5 : 0, (omitPrefix ? (hashLength - 5) : hashLength) + 1 + intSize);
+            Encoding.ASCII.GetBytes(finalChars, bufferWriter);
         }
+
+
 
         public void Dispose()
         {
@@ -336,5 +351,18 @@ namespace HaveIBeenPwned.PwnedPasswords
             line = default;
             return false;
         }
+
+        public void Deconstruct(out ReadOnlyMemory<byte> hash, out int prevalence)
+        {
+            hash = Hash.ToArray();
+            prevalence = Prevalence;
+        }
+
+        public int CompareTo(HashEntry other) => Hash.Span.SequenceCompareTo(other.Hash.Span);
+        public bool Equals(HashEntry other) => Hash.Span.SequenceEqual(other.Hash.Span) && Prevalence == other.Prevalence;
+        public int CompareTo(ReadOnlyMemory<byte> other) => Hash.Span.SequenceCompareTo(other.Span);
+        public int Compare(ReadOnlyMemory<byte> x, ReadOnlyMemory<byte> y) => x.Span.SequenceCompareTo(y.Span);
+
+        public override string ToString() => $"{Hash.Span.ConvertToHex()}:{Prevalence.ToString(CultureInfo.InvariantCulture)}";
     }
 }
