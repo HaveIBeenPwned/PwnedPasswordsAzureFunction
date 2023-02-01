@@ -12,7 +12,10 @@ Task worker = Task.Run(async () =>
 {
     await foreach (var item in channel.Reader.ReadAllAsync().ConfigureAwait(false))
     {
-        await item.ConfigureAwait(false);
+        if (!item.IsCompletedSuccessfully)
+        {
+            await item.ConfigureAwait(false);
+        }
     }
 });
 
@@ -71,10 +74,10 @@ async Task WriteEntries(string file, List<HashEntry> entries, bool writeBinary)
             }
         }
 
-        await writer.FlushAsync().ConfigureAwait(false); ;
     }
 
-    await writer.CompleteAsync().ConfigureAwait(false); ;
+    await writer.FlushAsync().ConfigureAwait(false);
+    await writer.CompleteAsync().ConfigureAwait(false);
 
     if (i++ % 100 == 0)
     {
