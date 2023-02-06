@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -14,7 +15,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
 {
     public class HashEntryTests
     {
-        private readonly string SHA1Hashes =
+        private readonly string _sHA1Hashes =
             @"0005AD76BD555C1D6D771DE417A4B87E4B4:10
 000A8DAE4228F821FB418F59826079BF368:4
 000DD7F2A1C68A35673713783CA390C9E93:873
@@ -32,15 +33,70 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
 0152C0E9B6DAFEB1D101A541D801095E22B:1
 016C6C075173C163757BCEA8139D4CC69CF:15";
 
+        [Fact]
+        public void CanBePutIntoSortedList()
+        {
+            SortedList<HashEntry, HashEntry> entries = new();
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:15", out HashEntry entry));
+            Assert.True(HashEntry.TryParseFromText("000000005AD76BD555C1D6D771DE417A4B87E4B4:10", out HashEntry entry2));
+            entries.Add(entry, entry);
+            entries.Add(entry2, entry2);
+            Assert.Equal(entry2, entries.Keys[0]);
+            Assert.Equal(entry, entries.Keys[1]);
+        }
+
+        [Fact]
+        public void CanBePutIntoSortedListWithHashKeyAndPrevalenceValue()
+        {
+            SortedList<ReadOnlyMemory<byte>, int> entries = new(HashEntry.HashComparer);
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:15", out HashEntry entry));
+            Assert.True(HashEntry.TryParseFromText("000000005AD76BD555C1D6D771DE417A4B87E4B4:10", out HashEntry entry2));
+            entries.Add(entry.Hash, entry.Prevalence);
+            entries.Add(entry2.Hash, entry2.Prevalence);
+            Assert.Equal(entry2.Hash, entries.Keys[0]);
+            Assert.Equal(entry.Hash, entries.Keys[1]);
+        }
+
+        [Fact]
+        public void CanBePutIntoSortedSet()
+        {
+            SortedSet<HashEntry> entries = new();
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:15", out HashEntry entry));
+            Assert.True(HashEntry.TryParseFromText("000000005AD76BD555C1D6D771DE417A4B87E4B4:10", out HashEntry entry2));
+            Assert.True(entries.Add(entry));
+            Assert.True(entries.Add(entry2));
+            var list = entries.ToList();
+            Assert.Equal(entry2, list[0]);
+            Assert.Equal(entry, list[1]);
+        }
+
+        [Fact]
+        public void IncrementingPrevalenceInSortedSetChangesValues()
+        {
+            SortedSet<HashEntry> entries = new();
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:15", out HashEntry entry));
+            Assert.True(HashEntry.TryParseFromText("00000016C6C075173C163757BCEA8139D4CC69CF:10", out HashEntry entry2));
+            Assert.True(entries.Add(entry));
+            Assert.True(entries.TryGetValue(entry2, out HashEntry entry3));
+            Assert.StrictEqual(entry, entry3);
+            Assert.NotStrictEqual(entry, entry2);
+            Assert.Equal(10, entry2.Prevalence);
+            Assert.Equal(15, entry3.Prevalence);
+            Assert.Equal(entry.Prevalence, entry3.Prevalence);
+            entry.Prevalence += entry2.Prevalence;
+            var list = entries.ToList();
+            Assert.Equal(25, list[0].Prevalence);
+        }
+
         [Theory]
-        [InlineData(new object[] {"000000:123", new byte[] { 0x00, 0x00, 0x00 }, 123})]
+        [InlineData(new object[] { "000000:123", new byte[] { 0x00, 0x00, 0x00 }, 123 })]
         [InlineData(new object[] { "FF0000:123", new byte[] { 0xFF, 0x00, 0x00 }, 123 })]
         [InlineData(new object[] { "FF0000:123\r\n", new byte[] { 0xFF, 0x00, 0x00 }, 123 })]
         [InlineData(new object[] { "0F0000:123\n", new byte[] { 0x0F, 0x00, 0x00 }, 123 })]
         [InlineData(new object[] { "0F0000:123    \n", new byte[] { 0x0F, 0x00, 0x00 }, 123 })]
         public void CorrectlyParsesHashes(string hashstring, byte[] hash, int prevalence)
         {
-            HashEntry entry = new HashEntry(hashstring);
+            Assert.True(HashEntry.TryParseFromText(hashstring, out HashEntry entry));
             Assert.Equal(hash, entry.Hash.ToArray());
             Assert.Equal(prevalence, entry.Prevalence);
         }
@@ -54,13 +110,13 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         public void CorrectlyParsesHashesAsTextAndWritesBinary(string hashstring, byte[] hash, int prevalence)
         {
             byte[] bytes = new byte[7];
-            HashEntry entry = new HashEntry(hashstring);
+            Assert.True(HashEntry.TryParseFromText(hashstring, out HashEntry entry));
             Assert.Equal(hash, entry.Hash.ToArray());
             Assert.Equal(prevalence, entry.Prevalence);
 
-            MemoryStream stream = new MemoryStream(bytes);
+            MemoryStream stream = new(bytes);
             PipeWriter writer = PipeWriter.Create(stream);
-            entry.WriteTo(writer, false);
+            entry.WriteAsBinaryTo(writer, false);
             writer.FlushAsync().AsTask().Wait();
             Assert.Equal(hash[0], bytes[0]);
             Assert.Equal(hash[1], bytes[1]);
@@ -78,7 +134,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         [InlineData(new object[] { "0000F", "00000:123\n", new byte[] { 0x00, 0x00, 0xF0, 0x00, 0x00 }, 123 })]
         public void CorrectlyParsesHashesWithPrefix(string prefix, string hashstring, byte[] hash, int prevalence)
         {
-            HashEntry entry = new HashEntry(prefix, hashstring);
+            Assert.True(HashEntry.TryParseFromText(prefix + hashstring, out HashEntry entry));
             Assert.Equal(hash, entry.Hash.ToArray());
             Assert.Equal(prevalence, entry.Prevalence);
         }
@@ -91,20 +147,19 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         [InlineData(new object[] { "000000" })]
         [InlineData(new object[] { "000000:ABC" })]
         [InlineData(new object[] { "000XYZ:123" })]
-        public void ThrowsArgumentException(string hashstring)
+        public void TryParseFromTextReturnsFalse(string hashstring)
         {
-            Assert.Throws<ArgumentException>(() => new HashEntry(hashstring));
+            Assert.False(HashEntry.TryParseFromText(hashstring, out _));
         }
 
         [Fact]
-        public void ParseHashLines()
+        public async Task ParseHashLines()
         {
             string prefix = "00000";
-            string lines = SHA1Hashes;
+            MemoryStream stream = new(Encoding.ASCII.GetBytes(_sHA1Hashes));
             List<HashEntry> entries = new();
-            foreach(ReadOnlySpan<char> line in lines.AsSpan().EnumerateLines())
+            await foreach (HashEntry entry in HashEntry.ParseTextHashEntries(prefix, PipeReader.Create(stream)))
             {
-                var entry = new HashEntry(prefix, line);
                 Assert.True(entry.Prevalence > 0);
                 Assert.Equal(20, entry.Hash.Length);
                 entries.Add(entry);
@@ -117,11 +172,11 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         public async Task ParseHashLinesAsPipe()
         {
             string prefix = "00000";
-            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(SHA1HashesLarge), false);
+            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(_sHA1HashesLarge), false);
             memoryStream.Seek(0, SeekOrigin.Begin);
             var pipe = PipeReader.Create(memoryStream);
             List<HashEntry> entries = new();
-            await foreach (HashEntry entry in HashEntry.ParseHashEntries(prefix, pipe))
+            await foreach (HashEntry entry in HashEntry.ParseTextHashEntries(prefix, pipe))
             {
                 Assert.True(entry.Prevalence > 0);
                 Assert.Equal(20, entry.Hash.Length);
@@ -134,11 +189,11 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         [Fact]
         public async Task ParseHashLinesAsPipeFull()
         {
-            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(SHA1HashesFullLarge), false);
+            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(_sHA1HashesFullLarge), false);
             memoryStream.Seek(0, SeekOrigin.Begin);
             var pipe = PipeReader.Create(memoryStream);
             List<HashEntry> entries = new();
-            await foreach (HashEntry entry in HashEntry.ParseHashEntries(pipe))
+            await foreach (HashEntry entry in HashEntry.ParseTextHashEntries(pipe))
             {
                 Assert.True(entry.Prevalence > 0);
                 Assert.Equal(20, entry.Hash.Length);
@@ -151,11 +206,11 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         [Fact]
         public async Task ParseTextAndWriteAndParseBinaryReturnsSameResults()
         {
-            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(SHA1HashesLarge), false);
+            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(_sHA1HashesLarge), false);
             memoryStream.Seek(0, SeekOrigin.Begin);
             var pipe = PipeReader.Create(memoryStream);
             List<HashEntry> entries = new();
-            await foreach (HashEntry entry in HashEntry.ParseHashEntries("00000", pipe))
+            await foreach (HashEntry entry in HashEntry.ParseTextHashEntries("00000", pipe))
             {
                 Assert.True(entry.Prevalence > 0);
                 Assert.Equal(20, entry.Hash.Length);
@@ -166,9 +221,9 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
 
             var writableMemoryStream = new MemoryStream();
             PipeWriter pipeWriter = PipeWriter.Create(writableMemoryStream);
-            foreach (var item in entries)
+            foreach (HashEntry item in entries)
             {
-                item.WriteTo(pipeWriter, true);
+                item.WriteAsBinaryTo(pipeWriter, true);
             }
             await pipeWriter.CompleteAsync();
             await pipeWriter.FlushAsync();
@@ -193,11 +248,11 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
         [Fact]
         public async Task ParseTextAndWriteAndParseBinaryReturnsSameResultsForFullHashes()
         {
-            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(SHA1HashesFullLarge), false);
+            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(_sHA1HashesFullLarge), false);
             memoryStream.Seek(0, SeekOrigin.Begin);
             var pipe = PipeReader.Create(memoryStream);
             List<HashEntry> entries = new();
-            await foreach (HashEntry entry in HashEntry.ParseHashEntries(pipe))
+            await foreach (HashEntry entry in HashEntry.ParseTextHashEntries(pipe))
             {
                 Assert.True(entry.Prevalence > 0);
                 Assert.Equal(20, entry.Hash.Length);
@@ -208,16 +263,16 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
 
             var writableMemoryStream = new MemoryStream();
             PipeWriter pipeWriter = PipeWriter.Create(writableMemoryStream);
-            foreach(var item in entries)
+            foreach (HashEntry item in entries)
             {
-                item.WriteTo(pipeWriter, false);
+                item.WriteAsBinaryTo(pipeWriter, false);
             }
             await pipeWriter.CompleteAsync();
             await pipeWriter.FlushAsync();
 
             var pipe2 = PipeReader.Create(new MemoryStream(writableMemoryStream.ToArray()));
             List<HashEntry> entries2 = new();
-            await foreach (HashEntry entry in HashEntry.ParseBinaryHashEntries(pipe2, 20))
+            await foreach (HashEntry entry in HashEntry.ParseBinaryHashEntries(20, pipe2))
             {
                 Assert.True(entry.Prevalence > 0);
                 Assert.Equal(20, entry.Hash.Length);
@@ -225,14 +280,14 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
             }
 
             Assert.Equal(entries.Count, entries2.Count);
-            for(int i = 0; i < entries.Count; i++)
+            for (int i = 0; i < entries.Count; i++)
             {
                 Assert.True(entries[i].Hash.Span.SequenceEqual(entries2[i].Hash.Span));
                 Assert.Equal(entries[i].Prevalence, entries2[i].Prevalence);
             }
         }
 
-        private readonly string SHA1HashesLarge =
+        private readonly string _sHA1HashesLarge =
             @"0005AD76BD555C1D6D771DE417A4B87E4B4:10
 000A8DAE4228F821FB418F59826079BF368:4
 000DD7F2A1C68A35673713783CA390C9E93:873
@@ -1412,7 +1467,7 @@ FFF08733D14972CB3B1A0D1AD9E90CE4210:1
 FFF4D8A4DE3AD9B69FE2F82CFECBFC0F88A:1
 FFF5C4A486B528DD84D1F1D3F41A06E9256:3";
 
-        private readonly string SHA1HashesFullLarge = @"000000005AD76BD555C1D6D771DE417A4B87E4B4:10
+        private readonly string _sHA1HashesFullLarge = @"000000005AD76BD555C1D6D771DE417A4B87E4B4:10
 00000000A8DAE4228F821FB418F59826079BF368:4
 00000000DD7F2A1C68A35673713783CA390C9E93:873
 00000001E225B908BAC31C56DB04D892E47536E0:6

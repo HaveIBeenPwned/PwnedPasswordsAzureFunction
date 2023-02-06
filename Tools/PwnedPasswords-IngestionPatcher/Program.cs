@@ -1,22 +1,17 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Collections.Concurrent;
 using System.IO.Pipelines;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Channels;
 
 using HaveIBeenPwned.PwnedPasswords;
 
 Console.WriteLine("Hello, World!");
 
-Dictionary<string, List<PwnedPasswordsIngestionValue>> entries = new Dictionary<string, List<PwnedPasswordsIngestionValue>>();
-Channel<Task> workers = Channel.CreateBounded<Task>(64);
+Dictionary<string, List<HashEntry>> entries = new ();
 
-foreach (var ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ingested\"))
+foreach (string ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ingested\"))
 {
     using (Stream stream = File.OpenRead(ingestionFile))
     {
@@ -27,13 +22,17 @@ foreach (var ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\
             {
                 entry.NTLMHash = entry.NTLMHash.ToUpperInvariant();
                 string prefix = entry.NTLMHash[..5];
-                if (!entries.TryGetValue(prefix, out List<PwnedPasswordsIngestionValue>? values))
+                if (!entries.TryGetValue(prefix, out List<HashEntry>? values))
                 {
-                    values = new List<PwnedPasswordsIngestionValue>();
+                    values = new List<HashEntry>();
                     entries[prefix] = values;
                 }
 
-                values.Add(entry);
+                if (HashEntry.TryParseFromText(entry.NTLMHash, entry.Prevalence, out HashEntry hashEntry))
+                {
+                    values.Add(hashEntry);
+                }
+
                 count++;
             }
         }
@@ -42,76 +41,81 @@ foreach (var ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\
     }
 }
 
-var task = Task.Run(async () =>
+int num = 0;
+await Parallel.ForEachAsync(entries, WriteEnties);
+
+async ValueTask WriteEnties(KeyValuePair<string, List<HashEntry>> entry, CancellationToken cancellationToken)
 {
-    DateTimeOffset lastRun = DateTimeOffset.UtcNow;
-    int num = 0;
-    await foreach (var task in workers.Reader.ReadAllAsync())
+    await Task.WhenAll(ParseAndUpdateHashFile(entry.Key, entry.Value, true), ParseAndUpdateHashFile(entry.Key, entry.Value, false)).ConfigureAwait(false);
+    num++;
+    if (num % 100 == 0)
     {
-        await task;
-        num++;
-        if ((DateTimeOffset.UtcNow - lastRun) > TimeSpan.FromSeconds(5))
-        {
-            Console.WriteLine($"Done writing {num} files.");
-            lastRun = DateTimeOffset.UtcNow;
-        }
+        Console.WriteLine($"Done writing {num} files.");
     }
-});
-
-foreach (var entry in entries)
-{
-    await workers.Writer.WriteAsync(ParseAndUpdateHashFile(entry.Key, entry.Value));
 }
-workers.Writer.TryComplete();
-await task;
 
-async Task ParseAndUpdateHashFile(string prefix, List<PwnedPasswordsIngestionValue> batchEntries)
+static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEntries, bool writeBinary)
 {
+    byte[] Newline = new[] { (byte)'\r', (byte)'\n' };
+
     try
     {
-        SortedDictionary<string, HashEntry> entries = new();
+        SortedSet<HashEntry> entries = new();
 
         // Let's read the existing blob into a sorted dictionary so we can write it back in order!
-        var file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\binhashes\{prefix}.bin", new FileStreamOptions()
+        FileStream file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\hashes\{prefix}.bin", new FileStreamOptions()
         {
-            Access = FileAccess.ReadWrite,
+            Access = FileAccess.Read,
             Mode = FileMode.Open,
             Options = FileOptions.Asynchronous | FileOptions.SequentialScan
         });
         var pipeReader = PipeReader.Create(file);
-        await foreach (var entry in HashEntry.ParseBinaryHashEntries(prefix, 16, pipeReader))
+        await foreach (HashEntry entry in HashEntry.ParseBinaryHashEntries(prefix, 16, pipeReader))
         {
-            entries.Add(entry.Hash.Span.ConvertToHex()[5..], entry);
+            entries.Add(entry);
         }
 
         // We now have a sorted dictionary with the hashes for this prefix.
         // Let's add or update the suffixes with the prevalence counts.
-        foreach (var item in batchEntries)
+        foreach (HashEntry item in batchEntries)
         {
-            var ntlmHash = item.NTLMHash[5..];
-            if (entries.TryGetValue(ntlmHash, out HashEntry value))
+            if (entries.TryGetValue(item, out HashEntry value))
             {
                 value.Prevalence += item.Prevalence;
             }
             else
             {
-                entries.Add(ntlmHash, new HashEntry(Convert.FromHexString(item.NTLMHash), item.Prevalence));
+                entries.Add(item);
             }
         }
 
         file.Dispose();
 
-        file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\binhashespatched\{prefix}.bin", new FileStreamOptions()
+        file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\updatedhashes\{prefix}.{(writeBinary ? "bin" : "txt")}", new FileStreamOptions()
         {
             Access = FileAccess.Write,
             Mode = FileMode.Create,
             Options = FileOptions.Asynchronous
         });
         var pipeWriter = PipeWriter.Create(file);
-
-        foreach (var item in entries)
+        int lastI = entries.Count - 1;
+        int i = 0;
+        foreach (HashEntry item in entries)
         {
-            item.Value.WriteTo(pipeWriter, true);
+            if (writeBinary)
+            {
+                item.WriteAsBinaryTo(pipeWriter, true);
+            }
+            else
+            {
+                item.WriteTextTo(pipeWriter, true);
+                if (i++ != lastI)
+                {
+                    Memory<byte> mem = pipeWriter.GetMemory(2);
+                    Newline.CopyTo(mem);
+                    pipeWriter.Advance(2);
+                }
+            }
         }
 
         await pipeWriter.CompleteAsync();

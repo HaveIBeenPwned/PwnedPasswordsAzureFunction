@@ -76,7 +76,7 @@ public class ProcessTransaction
                     {
                         if (num >= 300)
                         {
-                            var currentBatch = batch;
+                            PasswordEntryBatch currentBatch = batch;
                             await channel.Writer.WriteAsync(currentBatch);
                             batch = new PasswordEntryBatch
                             {

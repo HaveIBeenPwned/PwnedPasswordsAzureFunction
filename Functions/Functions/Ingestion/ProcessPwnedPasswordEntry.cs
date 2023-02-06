@@ -23,12 +23,12 @@ public class ProcessPwnedPasswordEntryBatch
     [FunctionName("ProcessAppendQueueItem")]
     public async Task Run([QueueTrigger("%TableNamespace%-ingestion", Connection = "PwnedPasswordsConnectionString")] byte[] queueItem, CancellationToken cancellationToken)
     {
-        var batch = JsonSerializer.Deserialize<PasswordEntryBatch>(Encoding.UTF8.GetString(queueItem));
+        PasswordEntryBatch? batch = JsonSerializer.Deserialize<PasswordEntryBatch>(Encoding.UTF8.GetString(queueItem));
         if (batch != null)
         {
             // Let's set some activity tags and log scopes so we have event correlation in our logs!
             Activity.Current?.AddTag("SubscriptionId", batch.SubscriptionId).AddTag("TransactionId", batch.TransactionId);
-            foreach (var prefixBatch in batch.PasswordEntries)
+            foreach (KeyValuePair<string, List<PwnedPasswordsIngestionValue>> prefixBatch in batch.PasswordEntries)
             {
                 List<Task> tasks = new(2 + prefixBatch.Value.Count);
                 foreach (PwnedPasswordsIngestionValue item in prefixBatch.Value)
@@ -82,7 +82,7 @@ public class ProcessPwnedPasswordEntryBatch
 
         // We now have a sorted dictionary with the hashes for this prefix.
         // Let's add or update the suffixes with the prevalence counts.
-        foreach (var item in batchEntries)
+        foreach (PwnedPasswordsIngestionValue item in batchEntries)
         {
             string suffix = item.SHA1Hash[5..];
             if (hashes.ContainsKey(suffix))
