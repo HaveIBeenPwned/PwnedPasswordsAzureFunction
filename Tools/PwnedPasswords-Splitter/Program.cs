@@ -1,31 +1,14 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using System.IO.Pipelines;
-using System.Threading.Channels;
 
 using HaveIBeenPwned.PwnedPasswords;
 
 int i = 0;
-Channel<Task> channel = Channel.CreateBounded<Task>(new BoundedChannelOptions(16) { AllowSynchronousContinuations = false, SingleWriter = true, SingleReader = true });
-Task worker = Task.Run(async () =>
-{
-    await foreach (var item in channel.Reader.ReadAllAsync().ConfigureAwait(false))
-    {
-        if (!item.IsCompletedSuccessfully)
-        {
-            await item.ConfigureAwait(false);
-        }
-    }
-});
+byte[] Newline = new[] { (byte)'\r', (byte)'\n' };
 
-await foreach(var item in SplitHashesAsync(@"C:\Users\stefa\Downloads\pwned-passwords-ntlm-ordered-by-hash-v8\pwned-passwords-ntlm-ordered-by-hash-v8.txt", true))
-{
-    var task = WriteEntries(item.file, item.entries, item.writeBinary);
-    await channel.Writer.WriteAsync(task);
-}
-channel.Writer.TryComplete();
-await worker.ConfigureAwait(false);
+var asyncEnumerable = SplitHashesAsync(@"C:\Users\stefa\Downloads\pwned-passwords-ntlm-ordered-by-hash-v8\pwned-passwords-ntlm-ordered-by-hash-v8.txt", false);
+await Parallel.ForEachAsync(asyncEnumerable, WriteEntries).ConfigureAwait(false);
 
 async IAsyncEnumerable<(string file, List<HashEntry> entries, bool writeBinary)> SplitHashesAsync(string fileName, bool writeBinary)
 {
@@ -51,36 +34,39 @@ async IAsyncEnumerable<(string file, List<HashEntry> entries, bool writeBinary)>
     static string GetFileName(bool writeBinary, List<HashEntry> entries) => $@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\hashes\{Convert.ToHexString(entries[0].Hash.Slice(0, 3).Span)[..5]}.{(writeBinary ? "bin" : "txt")}";
 }
 
-async Task WriteEntries(string file, List<HashEntry> entries, bool writeBinary)
+async ValueTask WriteEntries((string file, List<HashEntry> entries, bool writeBinary) item, CancellationToken _)
 {
-    using FileStream output = File.Open(file, new FileStreamOptions() { Access = FileAccess.Write, Mode = FileMode.Create, Options = FileOptions.Asynchronous, BufferSize = 1024 * 16 });
-    var writer = PipeWriter.Create(output);
-    for (int i = 0; i < entries.Count; i++)
+    using FileStream output = File.Open(item.file, new FileStreamOptions() { Access = FileAccess.Write, Mode = FileMode.Create, Options = FileOptions.Asynchronous, BufferSize = 1024 * 64 });
+    var writer = PipeWriter.Create(output, new StreamPipeWriterOptions(minimumBufferSize: 64 * 1024));
+    int lastI = item.entries.Count - 1;
+    for (int i = 0; i < item.entries.Count; i++)
     {
-        using HashEntry entry = entries[i];
-        if (writeBinary)
+        using HashEntry entry = item.entries[i];
+        if (item.writeBinary)
         {
             entry.WriteAsBinaryTo(writer, true);
         }
         else
         {
             entry.WriteTextTo(writer, true);
-            if (i != entries.Count - 1)
+            if (i != lastI)
             {
                 Memory<byte> mem = writer.GetMemory(2);
-                mem.Span[0] = (byte)'\r';
-                mem.Span[1] = (byte)'\n';
+                Newline.CopyTo(mem);
                 writer.Advance(2);
             }
         }
-
     }
 
-    await writer.FlushAsync().ConfigureAwait(false);
+    ValueTask<FlushResult> flushTask = writer.FlushAsync();
+    if(!flushTask.IsCompletedSuccessfully)
+    {
+        await flushTask.ConfigureAwait(false);
+    }
     await writer.CompleteAsync().ConfigureAwait(false);
 
     if (i++ % 100 == 0)
     {
-        Console.WriteLine($"Wrote file {file}");
+        Console.WriteLine($"Wrote file {item.file}");
     }
 }

@@ -4,14 +4,12 @@
 using System.IO.Pipelines;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Channels;
 
 using HaveIBeenPwned.PwnedPasswords;
 
 Console.WriteLine("Hello, World!");
 
 Dictionary<string, List<HashEntry>> entries = new ();
-Channel<Task> workers = Channel.CreateBounded<Task>(64);
 
 foreach (string ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ingested\"))
 {
@@ -43,39 +41,31 @@ foreach (string ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\sour
     }
 }
 
-var task = Task.Run(async () =>
+int num = 0;
+await Parallel.ForEachAsync(entries, WriteEnties);
+
+async ValueTask WriteEnties(KeyValuePair<string, List<HashEntry>> entry, CancellationToken cancellationToken)
 {
-    DateTimeOffset lastRun = DateTimeOffset.UtcNow;
-    int num = 0;
-    await foreach (System.Threading.Tasks.Task task in workers.Reader.ReadAllAsync())
+    await Task.WhenAll(ParseAndUpdateHashFile(entry.Key, entry.Value, true), ParseAndUpdateHashFile(entry.Key, entry.Value, false)).ConfigureAwait(false);
+    num++;
+    if (num % 100 == 0)
     {
-        await task;
-        num++;
-        if ((DateTimeOffset.UtcNow - lastRun) > TimeSpan.FromSeconds(5))
-        {
-            Console.WriteLine($"Done writing {num} files.");
-            lastRun = DateTimeOffset.UtcNow;
-        }
+        Console.WriteLine($"Done writing {num} files.");
     }
-});
-
-foreach (KeyValuePair<string, List<HashEntry>> entry in entries)
-{
-    await workers.Writer.WriteAsync(ParseAndUpdateHashFile(entry.Key, entry.Value));
 }
-workers.Writer.TryComplete();
-await task;
 
-static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEntries)
+static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEntries, bool writeBinary)
 {
+    byte[] Newline = new[] { (byte)'\r', (byte)'\n' };
+
     try
     {
         SortedSet<HashEntry> entries = new();
 
         // Let's read the existing blob into a sorted dictionary so we can write it back in order!
-        FileStream file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\binhashes\{prefix}.bin", new FileStreamOptions()
+        FileStream file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\hashes\{prefix}.bin", new FileStreamOptions()
         {
-            Access = FileAccess.ReadWrite,
+            Access = FileAccess.Read,
             Mode = FileMode.Open,
             Options = FileOptions.Asynchronous | FileOptions.SequentialScan
         });
@@ -101,17 +91,31 @@ static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEnt
 
         file.Dispose();
 
-        file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\binhashespatched\{prefix}.bin", new FileStreamOptions()
+        file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\updatedhashes\{prefix}.{(writeBinary ? "bin" : "txt")}", new FileStreamOptions()
         {
             Access = FileAccess.Write,
             Mode = FileMode.Create,
             Options = FileOptions.Asynchronous
         });
         var pipeWriter = PipeWriter.Create(file);
-
+        int lastI = entries.Count - 1;
+        int i = 0;
         foreach (HashEntry item in entries)
         {
-            item.WriteAsBinaryTo(pipeWriter, true);
+            if (writeBinary)
+            {
+                item.WriteAsBinaryTo(pipeWriter, true);
+            }
+            else
+            {
+                item.WriteTextTo(pipeWriter, true);
+                if (i++ != lastI)
+                {
+                    Memory<byte> mem = pipeWriter.GetMemory(2);
+                    Newline.CopyTo(mem);
+                    pipeWriter.Advance(2);
+                }
+            }
         }
 
         await pipeWriter.CompleteAsync();

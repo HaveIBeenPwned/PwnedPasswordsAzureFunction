@@ -320,30 +320,25 @@ namespace HaveIBeenPwned.PwnedPasswords
 
         private static bool TryReadLine(ref ReadOnlySequence<byte> buffer, bool isComplete, out ReadOnlySequence<byte> line)
         {
-            while (buffer.Length > 0)
+            SequencePosition? position = buffer.PositionOf((byte)'\n');
+            if (position.HasValue)
             {
-                SequencePosition? position = buffer.PositionOf((byte)'\n');
-                if (position.HasValue)
-                {
-                    line = buffer.Slice(buffer.Start, position.Value);
-                    buffer = buffer.Slice(line.Length + 1);
-                    return true;
-                }
-                else if (isComplete)
-                {
-                    // The pipe is complete but we don't have a newline character, this input probably ends without a newline char.
-                    line = buffer;
-                    buffer = buffer.Slice(buffer.End, 0);
-                    return true;
-                }
-                else
-                {
-                    break;
-                }
+                line = buffer.Slice(buffer.Start, position.Value);
+                buffer = buffer.Slice(line.Length + 1);
+                return true;
             }
-
-            line = default;
-            return false;
+            else if (isComplete)
+            {
+                // The pipe is complete but we don't have a newline character, this input probably ends without a newline char.
+                line = buffer;
+                buffer = buffer.Slice(buffer.End, 0);
+                return true;
+            }
+            else
+            {
+                line = default;
+                return false;
+            }
         }
 
         public void Deconstruct(out ReadOnlyMemory<byte> hash, out int prevalence)

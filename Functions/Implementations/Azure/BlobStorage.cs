@@ -29,7 +29,7 @@ public class BlobStorage : IFileStorage
 
         _log = log;
         _blobContainerSha1Client = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName);
-        _blobContainerNtlmClient = serviceClient.GetBlobContainerClient($"ntlmbin{storageOptions.BlobContainerName}");
+        _blobContainerNtlmClient = serviceClient.GetBlobContainerClient($"ntlm{storageOptions.BlobContainerName}");
         _ingestionContainerClient = serviceClient.GetBlobContainerClient(storageOptions.BlobContainerName + "ingestion");
         _ingestionContainerClient.CreateIfNotExists();
     }
@@ -47,19 +47,13 @@ public class BlobStorage : IFileStorage
 
     public async Task<PwnedPasswordsFile> GetHashFileAsync(string hashPrefix, string mode, CancellationToken cancellationToken = default)
     {
-        string fileName = $"{hashPrefix}.{(mode == "sha1" ? "txt" : "bin")}";
+        string fileName = $"{hashPrefix}.txt";
         BlobClient blobClient = mode == "sha1" ? _blobContainerSha1Client.GetBlobClient(fileName) : _blobContainerNtlmClient.GetBlobClient(fileName);
 
         try
         {
-            MemoryStream recyclableStream = s_manager.GetStream();
-            Response<BlobDownloadStreamingResult> response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-            using (response.Value.Content)
-            {
-                await response.Value.Content.CopyToAsync(recyclableStream, cancellationToken).ConfigureAwait(false);
-                recyclableStream.Seek(0, SeekOrigin.Begin);
-                return new PwnedPasswordsFile(recyclableStream, response.Value.Details.LastModified, response.Value.Details.ETag.ToString());
-            }
+            Response<BlobDownloadResult> response = await blobClient.DownloadContentAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            return new PwnedPasswordsFile(response.Value.Content.ToStream(), response.Value.Details.LastModified, response.Value.Details.ETag.ToString());
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
