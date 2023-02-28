@@ -1,4 +1,7 @@
-﻿namespace HaveIBeenPwned.PwnedPasswords.Functions;
+﻿
+using Microsoft.Net.Http.Headers;
+
+namespace HaveIBeenPwned.PwnedPasswords.Functions;
 
 /// <summary>
 /// Main entry point for Pwned Passwords
@@ -46,7 +49,7 @@ public class Range
         try
         {
             PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), mode, cancellationToken);
-            return new FileStreamResult(entry.Content, "text/plain") { LastModified = entry.LastModified };
+            return new FileStreamResult(entry.Content, "text/plain") { LastModified = entry.LastModified, EntityTag = new EntityTagHeaderValue(entry.ETag, false) };
         }
         catch (FileNotFoundException)
         {
