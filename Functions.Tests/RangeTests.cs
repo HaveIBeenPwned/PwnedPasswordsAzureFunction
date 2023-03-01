@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -7,7 +9,6 @@ using HaveIBeenPwned.PwnedPasswords.Abstractions;
 using HaveIBeenPwned.PwnedPasswords.Models;
 
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -25,15 +26,14 @@ public class RangeTests
     public async Task Returns_ok_given_valid_hashprefix()
     {
         string validHashPrefix = "ABCDE";
-        var returnHashFile = new PwnedPasswordsFile(Stream.Null, DateTimeOffset.UtcNow, "*");
+        var returnHashFile = new PwnedPasswordsFile(Stream.Null, DateTimeOffset.UtcNow, "\"ABCDEF\"");
         var mockStorage = new Mock<IFileStorage>();
         mockStorage.Setup(s => s.GetHashFileAsync(validHashPrefix, "sha1", CancellationToken.None)).ReturnsAsync(returnHashFile);
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
-        IActionResult? actualResponse = await function.RunAsync(context.Request, validHashPrefix);
-
-        Assert.IsType<FileStreamResult>(actualResponse);
+        HttpResponseMessage actualResponse = await function.RunAsync(context.Request, validHashPrefix);
+        Assert.Equal(HttpStatusCode.OK, actualResponse.StatusCode);
     }
 
     [Fact]
@@ -44,10 +44,8 @@ public class RangeTests
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
-        IActionResult? actualResponse = await function.RunAsync(context.Request, "ABCDE");
-
-        ContentResult? result = Assert.IsType<ContentResult>(actualResponse);
-        Assert.Equal(StatusCodes.Status404NotFound, result.StatusCode);
+        HttpResponseMessage actualResponse = await function.RunAsync(context.Request, "ABCDE");
+        Assert.Equal(HttpStatusCode.NotFound, actualResponse.StatusCode);
     }
 
     [Theory]
@@ -62,10 +60,8 @@ public class RangeTests
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
-        IActionResult? actualResponse = await function.RunAsync(context.Request, invalidHashPrefix);
-
-        ContentResult? result = Assert.IsType<ContentResult>(actualResponse);
-        Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
+        HttpResponseMessage actualResponse = await function.RunAsync(context.Request, invalidHashPrefix);
+        Assert.Equal(HttpStatusCode.BadRequest, actualResponse.StatusCode);
     }
 
     [Fact]
@@ -76,9 +72,7 @@ public class RangeTests
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
-        IActionResult? actualResponse = await function.RunAsync(context.Request, "ABCDE");
-
-        ContentResult? result = Assert.IsType<ContentResult>(actualResponse);
-        Assert.Equal(StatusCodes.Status500InternalServerError, result.StatusCode);
+        HttpResponseMessage actualResponse = await function.RunAsync(context.Request, "ABCDE");
+        Assert.Equal(HttpStatusCode.InternalServerError, actualResponse.StatusCode);
     }
 }
