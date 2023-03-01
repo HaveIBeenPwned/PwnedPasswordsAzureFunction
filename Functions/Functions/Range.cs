@@ -35,7 +35,7 @@ public class Range
     /// <param name="log">Logger instance to emit diagnostic information to</param>
     /// <returns></returns>
     [Function("Range-GET")]
-    public async Task<HttpResponseData> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestData req, string hashPrefix, FunctionContext executionContext, CancellationToken cancellationToken)
+    public async Task<HttpResponseData> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestData req, string hashPrefix, CancellationToken cancellationToken = default)
     {
         if (!hashPrefix.IsHexStringOfLength(5))
         {
