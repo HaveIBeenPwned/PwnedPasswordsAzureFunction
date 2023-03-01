@@ -4,11 +4,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using HaveIBeenPwned.PwnedPasswords.Abstractions;
-using HaveIBeenPwned.PwnedPasswords.Functions;
 using HaveIBeenPwned.PwnedPasswords.Models;
 
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 

@@ -1,4 +1,5 @@
 ﻿using System.Net.Http;
+using System.Net.Http.Json;
 using System.Threading.Channels;
 
 namespace HaveIBeenPwned.PwnedPasswords.Implementations.Cloudflare;
@@ -36,8 +37,8 @@ public sealed class CdnStorage : ICdnStorage
     /// <returns>Boolean stating if Cloudflare returned a success in the JSON response</returns>
     public async Task PurgeFilesAsync(List<string> hashPrefixes, CancellationToken cancellationToken = default)
     {
-        Channel<string[]> channel = Channel.CreateBounded<string[]>(new BoundedChannelOptions(Startup.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
-        Task[] queueTasks = new Task[Startup.Parallelism];
+        Channel<string[]> channel = Channel.CreateBounded<string[]>(new BoundedChannelOptions(Program.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
+        Task[] queueTasks = new Task[Program.Parallelism];
         for (int i = 0; i < queueTasks.Length; i++)
         {
             queueTasks[i] = ProcessQueueItem(channel);

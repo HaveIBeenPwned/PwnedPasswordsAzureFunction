@@ -1,6 +1,11 @@
 ﻿
-using System.Net.Http;
-using System.Net.Http.Headers;
+using System.Globalization;
+using System.Net;
+
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Primitives;
 
 namespace HaveIBeenPwned.PwnedPasswords.Functions;
 
@@ -29,8 +34,8 @@ public class Range
     /// <param name="hashPrefix">The passed hash prefix</param>
     /// <param name="log">Logger instance to emit diagnostic information to</param>
     /// <returns></returns>
-    [FunctionName("Range-GET")]
-    public async Task<IActionResult> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequest req, string hashPrefix, CancellationToken cancellationToken = default)
+    [Function("Range-GET")]
+    public async Task<HttpResponseData> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequestData req, string hashPrefix, FunctionContext executionContext, CancellationToken cancellationToken)
     {
         if (!hashPrefix.IsHexStringOfLength(5))
         {
@@ -38,7 +43,8 @@ public class Range
         }
 
         string mode = "sha1";
-        if (req.Query.TryGetValue("mode", out Microsoft.Extensions.Primitives.StringValues queryMode))
+        Dictionary<string, StringValues> query = QueryHelpers.ParseQuery(req.Url.Query);
+        if (query.TryGetValue("mode", out StringValues queryMode))
 
         {
             mode = (string)queryMode switch
@@ -51,40 +57,22 @@ public class Range
         try
         {
             PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), mode, cancellationToken);
-            return new PwnedPasswordsFileResult(entry);
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            response.Headers.Add("Content-Type", "text/plain");
+            response.Headers.Add("Content-Length", entry.Content.Length.ToString(CultureInfo.InvariantCulture));
+            response.Headers.Add("ETag", entry.ETag);
+            response.Headers.Add("Last-Modified", entry.LastModified.ToString("R"));
+            await entry.Content.CopyToAsync(response.Body);
+            return response;
         }
         catch (FileNotFoundException)
         {
-            return req.NotFound();
+            return req.NotFound("The hash prefix was not found");
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Something went wrong.");
             return req.InternalServerError();
         }
-    }
-}
-
-public class PwnedPasswordsFileResult : IActionResult
-{
-    private readonly PwnedPasswordsFile _pwnedPasswordsFile;
-
-    public PwnedPasswordsFileResult(PwnedPasswordsFile pwnedPasswordsFile)
-    {
-        _pwnedPasswordsFile = pwnedPasswordsFile;
-    }
-
-    public async Task ExecuteResultAsync(ActionContext context)
-    {
-        context.HttpContext.Response.StatusCode = 200;
-        context.HttpContext.Response.ContentType = "text/plain";
-        context.HttpContext.Response.ContentLength = _pwnedPasswordsFile.Content.Length;
-        context.HttpContext.Response.Headers["Last-Modified"] = _pwnedPasswordsFile.LastModified.ToString("R");
-        context.HttpContext.Response.Headers["ETag"] = _pwnedPasswordsFile.ETag;
-
-        // NOTE: This flush should deactivate buffering
-        await context.HttpContext.Response.Body.FlushAsync(context.HttpContext.RequestAborted);
-        await _pwnedPasswordsFile.Content.CopyToAsync(context.HttpContext.Response.Body, context.HttpContext.RequestAborted);
-        await _pwnedPasswordsFile.Content.DisposeAsync();
     }
 }

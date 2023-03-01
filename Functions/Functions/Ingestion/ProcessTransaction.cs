@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 using System.Threading.Channels;
 
+using Microsoft.Azure.Functions.Worker;
+
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
 public class ProcessTransaction
@@ -23,11 +25,11 @@ public class ProcessTransaction
         _fileStorage = fileStorage;
     }
 
-    [FunctionName("ProcessTransactionQueueItem")]
+    [Function("ProcessTransactionQueueItem")]
     public async Task Run([QueueTrigger("%TableNamespace%-transaction", Connection = "PwnedPasswordsConnectionString")] byte[] queueItem, CancellationToken cancellationToken)
     {
-        Channel<PasswordEntryBatch> channel = Channel.CreateBounded<PasswordEntryBatch>(new BoundedChannelOptions(Startup.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
-        Task[] queueTasks = new Task[Startup.Parallelism];
+        Channel<PasswordEntryBatch> channel = Channel.CreateBounded<PasswordEntryBatch>(new BoundedChannelOptions(Program.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
+        Task[] queueTasks = new Task[Program.Parallelism];
         for(int i = 0; i < queueTasks.Length; i++)
         {
             queueTasks[i] = ProcessQueueItem(channel);

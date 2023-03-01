@@ -1,6 +1,12 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Linq;
+using System.Net;
+
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
 public class Confirm
@@ -21,22 +27,22 @@ public class Confirm
         _queueStorage = queueStorage;
     }
 
-    [FunctionName("IngestionConfirm")]
-    public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "post", Route = "append/confirm")] HttpRequest req)
+    [Function("IngestionConfirm")]
+    public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "post", Route = "append/confirm")] HttpRequestData req)
     {
         // Check that the data has been passed as JSON
-        if (req.ContentType == null || !req.ContentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase))
+        if (!req.Headers.TryGetValues("Content-Type", out var content) || content.Contains("application/json", StringComparer.OrdinalIgnoreCase))
         {
             // Incorrect Content-Type, bad request
             return req.BadRequest("Content-Type must be application/json");
         }
 
-        string subscriptionId = req.Headers[SubscriptionIdHeaderKey].ToString();
-        if (string.IsNullOrEmpty(subscriptionId))
+        if(!req.Headers.TryGetValues(SubscriptionIdHeaderKey, out var subIdHeader) || subIdHeader.Count() != 1 || string.IsNullOrEmpty(subIdHeader.First())) 
         {
             return req.BadRequest("Api-Subscription-Id header missing or invalid");
         }
 
+        string subscriptionId = subIdHeader.First();
         Activity.Current?.AddTag("SubscriptionId", subscriptionId);
         try
         {
@@ -49,22 +55,22 @@ public class Confirm
                     await _queueStorage.PushTransactionAsync(new QueueTransactionEntry { SubscriptionId = subscriptionId, TransactionId = data.TransactionId });
                 }
 
-                return new StatusCodeResult(StatusCodes.Status200OK);
+                return req.CreateResponse(HttpStatusCode.OK);
             }
 
             return req.BadRequest("No content provided.");
         }
         catch (ArgumentOutOfRangeException) // Thrown if transaction is not found.
         {
-            return new ContentResult { StatusCode = StatusCodes.Status404NotFound, Content = "TransactionId not found.", ContentType = "text/plain" };
+            return req.NotFound("TransactionId not found.");
         }
         catch (ArgumentException) // Thrown if trying to confirm transaction multiple times as the same time
         {
-            return new ContentResult { StatusCode = StatusCodes.Status409Conflict, Content = "TransactionId is already being confirmed.", ContentType = "text/plain" };
+            return req.PlainTextResult(HttpStatusCode.Conflict, "TransactionId is already being confirmed.");
         }
         catch (InvalidOperationException) // Thrown for other errors
         {
-            return new ContentResult { StatusCode = StatusCodes.Status500InternalServerError, Content = "An error occurred.", ContentType = "text/plain" };
+            return req.InternalServerError("An error occurred.");
         }
         catch (JsonException e)
         {

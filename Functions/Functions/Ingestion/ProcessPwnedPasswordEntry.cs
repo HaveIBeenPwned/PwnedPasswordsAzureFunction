@@ -1,6 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.Azure.Functions.Worker;
+
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
 public class ProcessPwnedPasswordEntryBatch
@@ -20,7 +22,7 @@ public class ProcessPwnedPasswordEntryBatch
         _blobStorage = blobStorage;
     }
 
-    [FunctionName("ProcessAppendQueueItem")]
+    [Function("ProcessAppendQueueItem")]
     public async Task Run([QueueTrigger("%TableNamespace%-ingestion", Connection = "PwnedPasswordsConnectionString")] byte[] queueItem, CancellationToken cancellationToken)
     {
         PasswordEntryBatch? batch = JsonSerializer.Deserialize<PasswordEntryBatch>(Encoding.UTF8.GetString(queueItem));
