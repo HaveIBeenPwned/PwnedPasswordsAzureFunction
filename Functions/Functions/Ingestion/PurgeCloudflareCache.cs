@@ -1,6 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.Azure.Functions.Worker;
+
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
 public class PurgeCloudflareCache
@@ -27,7 +29,7 @@ public class PurgeCloudflareCache
     /// </summary>
     /// <param name="timer">Timer information</param>
     /// <param name="log">Logger</param>
-    [FunctionName("PurgeCloudflareCache")]
+    [Function("PurgeCloudflareCache")]
     public async Task Run(
 #if DEBUG
         // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost

@@ -1,4 +1,6 @@
-﻿using Azure.Storage.Blobs;
+﻿using System.Net;
+
+using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 
 using Microsoft.IO;
@@ -79,7 +81,7 @@ public class BlobStorage : IFileStorage
                     await blobClient.UploadAsync(memStream, new BlobUploadOptions() { Conditions = new BlobRequestConditions() { IfMatch = new ETag(etag) } }, cancellationToken).ConfigureAwait(false);
                     return true;
                 }
-                catch (RequestFailedException ex) when (ex.Status == StatusCodes.Status412PreconditionFailed)
+                catch (RequestFailedException ex) when (ex.Status == (int)HttpStatusCode.PreconditionFailed)
                 {
                     // We have a write conflict, let's return false.
                     _log.LogWarning(ex, $"Unable to update blob {fileName} since ETag does not match.");

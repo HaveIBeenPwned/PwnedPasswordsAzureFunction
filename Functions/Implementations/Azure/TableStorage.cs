@@ -1,4 +1,6 @@
-﻿namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure;
+﻿using System.Net;
+
+namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure;
 
 public class TableStorageOptions : IOptions<TableStorageOptions>
 {
@@ -55,11 +57,11 @@ public sealed class TableStorage : ITableStorage
             // We've already confirmed this transaction.
             return false;
         }
-        catch (RequestFailedException e) when (e.Status == 404)
+        catch (RequestFailedException e) when (e.Status == (int)HttpStatusCode.BadRequest)
         {
             throw new ArgumentOutOfRangeException("Transaction id not found.", e);
         }
-        catch (RequestFailedException e) when (e.Status == StatusCodes.Status409Conflict)
+        catch (RequestFailedException e) when (e.Status == (int)HttpStatusCode.Conflict)
         {
             throw new ArgumentException("Transaciton has already been updated.", e);
         }
@@ -111,13 +113,13 @@ public sealed class TableStorage : ITableStorage
                 _log.LogInformation("Subscription {SubscriptionId} updated SHA1 entry {SHA1} from {PrevalenceBefore} to {PrevalenceAfter} as part of transaction {TransactionId}", batch.SubscriptionId, value.SHA1Hash, pwnedPassword.Prevalence - value.Prevalence, pwnedPassword.Prevalence, batch.TransactionId);
             }
             // If the item doesn't exist
-            catch (RequestFailedException e) when (e.Status == StatusCodes.Status404NotFound)
+            catch (RequestFailedException e) when (e.Status == (int)HttpStatusCode.NotFound)
             {
                 await _hashDataTable.AddEntityAsync(new PwnedPasswordEntity { PartitionKey = partitionKey, RowKey = rowKey, NTLMHash = value.NTLMHash, Prevalence = value.Prevalence }, cancellationToken).ConfigureAwait(false);
                 _log.LogInformation("Subscription {SubscriptionId} added new SHA1 entry {SHA1} with {Prevalence} as part of transaction {TransactionId}", batch.SubscriptionId, value.SHA1Hash, value.Prevalence, batch.TransactionId);
             }
         }
-        catch (RequestFailedException e) when (e.Status == StatusCodes.Status412PreconditionFailed || e.Status == StatusCodes.Status409Conflict)
+        catch (RequestFailedException e) when (e.Status == (int)HttpStatusCode.PreconditionFailed || e.Status == (int)HttpStatusCode.Conflict)
         {
             _log.LogWarning(e, $"Unable to update or insert PwnedPasswordEntity {partitionKey}:{rowKey} as it has already been updated.");
             return false;

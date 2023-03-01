@@ -1,5 +1,11 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+using System.Linq;
+using System.Net;
+
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
 public class Submit
@@ -26,33 +32,35 @@ public class Submit
     /// <param name="req">The request message from the client</param>
     /// <param name="log">Trace writer to use to write to the log</param>
     /// <returns>Response to the requesting client</returns>
-    [FunctionName("IngestionSubmit")]
-    public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "post", Route = "append")] HttpRequest req)
+    [Function("IngestionSubmit")]
+    public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "post", Route = "append")] HttpRequestData req)
     {
         // Check that the data has been passed as JSON
-        if (req.ContentType == null || !req.ContentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase))
+        if (!req.Headers.TryGetValues("Content-Type", out var content) || content.Contains("application/json", StringComparer.OrdinalIgnoreCase))
         {
             // Incorrect Content-Type, bad request
             return req.BadRequest("Content-Type must be application/json");
         }
 
-        string subscriptionId = req.Headers[SubscriptionIdHeaderKey].ToString();
-        if (string.IsNullOrEmpty(subscriptionId))
+        if (!req.Headers.TryGetValues(SubscriptionIdHeaderKey, out var subIdHeader) || subIdHeader.Count() != 1 || string.IsNullOrEmpty(subIdHeader.First()))
         {
             return req.BadRequest("Api-Subscription-Id header missing or invalid");
         }
 
+        string subscriptionId = subIdHeader.First();
         Activity.Current?.AddTag("SubscriptionId", subscriptionId);
         try
         {
-            (bool Success, IActionResult? Error) = await req.TryValidateEntries(JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(req.Body));
+            (bool Success, HttpResponseData? Error) = await req.TryValidateEntries(JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(req.Body));
             if (Success)
             {
                 // Now insert the data
                 req.Body.Seek(0, System.IO.SeekOrigin.Begin);
                 PwnedPasswordsTransaction? transaction = await _tableStorage.InsertAppendDataAsync(subscriptionId).ConfigureAwait(false);
                 await _fileStorage.StoreIngestionFileAsync(transaction.TransactionId, req.Body).ConfigureAwait(false);
-                return new OkObjectResult(transaction);
+                var res = req.CreateResponse(HttpStatusCode.OK);
+                await res.WriteAsJsonAsync(transaction);
+                return res;
             }
 
 #pragma warning disable CS8603 // Won't be null if Success=false.
