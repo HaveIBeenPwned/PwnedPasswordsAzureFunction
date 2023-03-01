@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using HaveIBeenPwned.PwnedPasswords.Abstractions;
+using HaveIBeenPwned.PwnedPasswords.Functions;
 using HaveIBeenPwned.PwnedPasswords.Models;
 
 using Microsoft.AspNetCore.Http;
@@ -33,7 +34,7 @@ public class RangeTests
         var context = new DefaultHttpContext();
         IActionResult? actualResponse = await function.RunAsync(context.Request, validHashPrefix);
 
-        Assert.IsType<FileStreamResult>(actualResponse);
+        Assert.IsType<PwnedPasswordsFileResult>(actualResponse);
     }
 
     [Fact]
