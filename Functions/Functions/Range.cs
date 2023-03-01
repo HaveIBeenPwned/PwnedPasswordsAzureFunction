@@ -1,6 +1,10 @@
 ﻿
+using System.IO.Compression;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+
+using Microsoft.IO;
 
 namespace HaveIBeenPwned.PwnedPasswords.Functions;
 
@@ -51,7 +55,7 @@ public class Range
         try
         {
             PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), mode, cancellationToken);
-            return new PwnedPasswordsFileResult(entry);
+            return new PwnedPasswordsFileResult(entry, req.GetTypedHeaders().AcceptEncoding);
         }
         catch (FileNotFoundException)
         {
@@ -68,23 +72,48 @@ public class Range
 public class PwnedPasswordsFileResult : IActionResult
 {
     private readonly PwnedPasswordsFile _pwnedPasswordsFile;
+    private readonly IList<Microsoft.Net.Http.Headers.StringWithQualityHeaderValue> _acceptEncoding;
+    private static readonly RecyclableMemoryStreamManager s_recyclableMemoryStreamManager = new RecyclableMemoryStreamManager();
 
-    public PwnedPasswordsFileResult(PwnedPasswordsFile pwnedPasswordsFile)
+    public PwnedPasswordsFileResult(PwnedPasswordsFile pwnedPasswordsFile, IList<Microsoft.Net.Http.Headers.StringWithQualityHeaderValue> acceptEncoding)
     {
         _pwnedPasswordsFile = pwnedPasswordsFile;
+        _acceptEncoding = acceptEncoding;
     }
 
     public async Task ExecuteResultAsync(ActionContext context)
     {
         context.HttpContext.Response.StatusCode = 200;
         context.HttpContext.Response.ContentType = "text/plain";
-        context.HttpContext.Response.ContentLength = _pwnedPasswordsFile.Content.Length;
         context.HttpContext.Response.Headers["Last-Modified"] = _pwnedPasswordsFile.LastModified.ToString("R");
         context.HttpContext.Response.Headers["ETag"] = _pwnedPasswordsFile.ETag;
+        using MemoryStream tempStream = s_recyclableMemoryStreamManager.GetStream();
+        using var pwnedStream = _pwnedPasswordsFile.Content;
+        if (_acceptEncoding.Any(x => x.Value == "br"))
+        {
+            using var brotliStream = new BrotliStream(tempStream, CompressionMode.Compress, true);
+            context.HttpContext.Response.Headers["Content-Encoding"] = "br";
+            await pwnedStream.CopyToAsync(brotliStream);
+        }
+        else if (_acceptEncoding.Any(x => x.Value == "gzip"))
+        {
+            using var gzipStream = new GZipStream(tempStream, CompressionMode.Compress, true);
+            context.HttpContext.Response.Headers["Content-Encoding"] = "gzip";
+            await pwnedStream.CopyToAsync(gzipStream);
+        }
+        else if (_acceptEncoding.Any(x => x.Value == "deflate"))
+        {
+            using var deflateStream = new DeflateStream(tempStream, CompressionMode.Compress, true);
+            context.HttpContext.Response.Headers["Content-Encoding"] = "deflate";
+            await pwnedStream.CopyToAsync(deflateStream);
+        }
+        else
+        {
+            await pwnedStream.CopyToAsync(tempStream);
+        }
 
-        // NOTE: This flush should deactivate buffering
-        await context.HttpContext.Response.Body.FlushAsync(context.HttpContext.RequestAborted);
-        await _pwnedPasswordsFile.Content.CopyToAsync(context.HttpContext.Response.Body, context.HttpContext.RequestAborted);
-        await _pwnedPasswordsFile.Content.DisposeAsync();
+        tempStream.Seek(0, SeekOrigin.Begin);
+        context.HttpContext.Response.ContentLength = tempStream.Length;
+        await tempStream.CopyToAsync(context.HttpContext.Response.Body, context.HttpContext.RequestAborted);
     }
 }
