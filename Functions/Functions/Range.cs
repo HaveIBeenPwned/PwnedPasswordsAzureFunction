@@ -30,11 +30,11 @@ public class Range
     /// <param name="log">Logger instance to emit diagnostic information to</param>
     /// <returns></returns>
     [FunctionName("Range-GET")]
-    public async Task<HttpResponseMessage> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequest req, string hashPrefix, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequest req, string hashPrefix, CancellationToken cancellationToken = default)
     {
         if (!hashPrefix.IsHexStringOfLength(5))
         {
-            return new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest) { Content = new StringContent("The hash was not in a valid format") };
+            return req.BadRequest("The hash was not in a valid format");
         }
 
         string mode = "sha1";
@@ -51,25 +51,40 @@ public class Range
         try
         {
             PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), mode, cancellationToken);
-            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
-            {
-                Content = new StreamContent(entry.Content)
-            };
-
-            response.Content.Headers.ContentLength = entry.Content.Length;
-            response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
-            response.Content.Headers.LastModified = entry.LastModified;
-            response.Headers.ETag = new EntityTagHeaderValue(entry.ETag, false);
-            return response;
+            return new PwnedPasswordsFileResult(entry);
         }
         catch (FileNotFoundException)
         {
-            return new HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { Content = new StringContent("The hash prefix was not found") };
+            return req.NotFound();
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Something went wrong.");
-            return new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError) { Content = new StringContent("Something went wrong.") };
+            return req.InternalServerError();
         }
+    }
+}
+
+public class PwnedPasswordsFileResult : IActionResult
+{
+    private readonly PwnedPasswordsFile _pwnedPasswordsFile;
+
+    public PwnedPasswordsFileResult(PwnedPasswordsFile pwnedPasswordsFile)
+    {
+        _pwnedPasswordsFile = pwnedPasswordsFile;
+    }
+
+    public async Task ExecuteResultAsync(ActionContext context)
+    {
+        context.HttpContext.Response.StatusCode = 200;
+        context.HttpContext.Response.ContentType = "text/plain";
+        context.HttpContext.Response.ContentLength = _pwnedPasswordsFile.Content.Length;
+        context.HttpContext.Response.Headers["Last-Modified"] = _pwnedPasswordsFile.LastModified.ToString("R");
+        context.HttpContext.Response.Headers["ETag"] = _pwnedPasswordsFile.ETag;
+
+        // NOTE: This flush should deactivate buffering
+        await context.HttpContext.Response.Body.FlushAsync(context.HttpContext.RequestAborted);
+        await _pwnedPasswordsFile.Content.CopyToAsync(context.HttpContext.Response.Body, context.HttpContext.RequestAborted);
+        await _pwnedPasswordsFile.Content.DisposeAsync();
     }
 }
