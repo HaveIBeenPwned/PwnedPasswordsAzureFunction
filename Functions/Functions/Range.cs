@@ -1,5 +1,6 @@
 ﻿
-using Microsoft.Net.Http.Headers;
+using System.Net.Http;
+using System.Net.Http.Headers;
 
 namespace HaveIBeenPwned.PwnedPasswords.Functions;
 
@@ -29,15 +30,16 @@ public class Range
     /// <param name="log">Logger instance to emit diagnostic information to</param>
     /// <returns></returns>
     [FunctionName("Range-GET")]
-    public async Task<IActionResult> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequest req, string hashPrefix, CancellationToken cancellationToken = default)
+    public async Task<HttpResponseMessage> RunAsync([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "range/{hashPrefix}")] HttpRequest req, string hashPrefix, CancellationToken cancellationToken = default)
     {
         if (!hashPrefix.IsHexStringOfLength(5))
         {
-            return req.BadRequest("The hash format was not in a valid format");
+            return new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest) { Content = new StringContent("The hash was not in a valid format") };
         }
 
         string mode = "sha1";
         if (req.Query.TryGetValue("mode", out Microsoft.Extensions.Primitives.StringValues queryMode))
+
         {
             mode = (string)queryMode switch
             {
@@ -49,16 +51,25 @@ public class Range
         try
         {
             PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), mode, cancellationToken);
-            return new FileStreamResult(entry.Content, "text/plain") { LastModified = entry.LastModified, EntityTag = new EntityTagHeaderValue(entry.ETag, false) };
+            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StreamContent(entry.Content)
+            };
+
+            response.Content.Headers.ContentLength = entry.Content.Length;
+            response.Content.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+            response.Content.Headers.LastModified = entry.LastModified;
+            response.Headers.ETag = new EntityTagHeaderValue(entry.ETag, false);
+            return response;
         }
         catch (FileNotFoundException)
         {
-            return req.NotFound();
+            return new HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { Content = new StringContent("The hash prefix was not found") };
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Something went wrong.");
-            return req.InternalServerError();
+            return new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError) { Content = new StringContent("Something went wrong.") };
         }
     }
 }
