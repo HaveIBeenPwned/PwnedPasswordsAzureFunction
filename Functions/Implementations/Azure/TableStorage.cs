@@ -97,7 +97,7 @@ public sealed class TableStorage : ITableStorage
         DateTime yesterday = DateTime.UtcNow.AddDays(-1);
         AsyncPageable<TableEntity> results = _cachePurgeTable.QueryAsync<TableEntity>(x => x.PartitionKey == $"{yesterday.Year}-{yesterday.Month}-{yesterday.Day}", cancellationToken: cancellationToken);
         var prefixes = new List<string>();
-        await foreach (TableEntity item in results)
+        await foreach (TableEntity item in results.ConfigureAwait(false))
         {
             if (item != null)
             {

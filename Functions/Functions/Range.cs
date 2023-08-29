@@ -54,7 +54,7 @@ public class Range
 
         try
         {
-            PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), mode, cancellationToken);
+            PwnedPasswordsFile entry = await _fileStorage.GetHashFileAsync(hashPrefix.ToUpper(), mode, cancellationToken).ConfigureAwait(false);
             return new PwnedPasswordsFileResult(entry, req.GetTypedHeaders().AcceptEncoding);
         }
         catch (FileNotFoundException)
@@ -93,27 +93,27 @@ public class PwnedPasswordsFileResult : IActionResult
         {
             using var brotliStream = new BrotliStream(tempStream, CompressionMode.Compress, true);
             context.HttpContext.Response.Headers["Content-Encoding"] = "br";
-            await pwnedStream.CopyToAsync(brotliStream);
+            await pwnedStream.CopyToAsync(brotliStream).ConfigureAwait(false);
         }
         else if (_acceptEncoding.Any(x => x.Value == "gzip"))
         {
             using var gzipStream = new GZipStream(tempStream, CompressionMode.Compress, true);
             context.HttpContext.Response.Headers["Content-Encoding"] = "gzip";
-            await pwnedStream.CopyToAsync(gzipStream);
+            await pwnedStream.CopyToAsync(gzipStream).ConfigureAwait(false);
         }
         else if (_acceptEncoding.Any(x => x.Value == "deflate"))
         {
             using var deflateStream = new DeflateStream(tempStream, CompressionMode.Compress, true);
             context.HttpContext.Response.Headers["Content-Encoding"] = "deflate";
-            await pwnedStream.CopyToAsync(deflateStream);
+            await pwnedStream.CopyToAsync(deflateStream).ConfigureAwait(false);
         }
         else
         {
-            await pwnedStream.CopyToAsync(tempStream);
+            await pwnedStream.CopyToAsync(tempStream).ConfigureAwait(false);
         }
 
         tempStream.Seek(0, SeekOrigin.Begin);
         context.HttpContext.Response.ContentLength = tempStream.Length;
-        await tempStream.CopyToAsync(context.HttpContext.Response.Body, context.HttpContext.RequestAborted);
+        await tempStream.CopyToAsync(context.HttpContext.Response.Body, context.HttpContext.RequestAborted).ConfigureAwait(false);
     }
 }

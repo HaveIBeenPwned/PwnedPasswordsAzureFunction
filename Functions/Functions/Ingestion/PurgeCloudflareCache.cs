@@ -45,7 +45,7 @@ public class PurgeCloudflareCache
         }
 
         // Get a list of the partitions which have been modified
-        List<string> modifiedPartitions = await _tableStorage.GetModifiedHashPrefixes(cancellationToken);
+        List<string> modifiedPartitions = await _tableStorage.GetModifiedHashPrefixes(cancellationToken).ConfigureAwait(false);
 
         if (modifiedPartitions.Count > 0)
         {

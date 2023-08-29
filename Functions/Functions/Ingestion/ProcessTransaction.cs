@@ -45,7 +45,7 @@ public class ProcessTransaction
                 _log.LogInformation("Subscription {SubscriptionId} started processing for transaction {TransactionId}. Fetching transaction entries.", item.SubscriptionId, item.TransactionId);
                 using (Stream stream = await _fileStorage.GetIngestionFileAsync(item.TransactionId, cancellationToken).ConfigureAwait(false))
                 {
-                    await foreach (PwnedPasswordsIngestionValue? entry in JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(stream, cancellationToken: cancellationToken))
+                    await foreach (PwnedPasswordsIngestionValue? entry in JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(stream, cancellationToken: cancellationToken).ConfigureAwait(false))
                     {
                         if (entry != null)
                         {
@@ -88,7 +88,7 @@ public class ProcessTransaction
                     {
                         if (num >= 500)
                         {
-                            await QueueHashBatchForProcessing(batch);
+                            await QueueHashBatchForProcessing(batch).ConfigureAwait(false);
                             num = 0;
                         }
 
@@ -100,7 +100,7 @@ public class ProcessTransaction
                     {
                         if (num >= 500)
                         {
-                            await QueueHashBatchForProcessing(batch);
+                            await QueueHashBatchForProcessing(batch).ConfigureAwait(false);
                             num = 0;
                         }
 
@@ -110,7 +110,7 @@ public class ProcessTransaction
 
                     if (num > 0)
                     {
-                        await QueueHashBatchForProcessing(batch);
+                        await QueueHashBatchForProcessing(batch).ConfigureAwait(false);
                     }
                 }
             }

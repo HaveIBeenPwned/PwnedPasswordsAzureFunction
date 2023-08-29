@@ -17,11 +17,7 @@
             }
         },
         "queues": {
-            "maxPollingInterval": "00:10:00",
-            "visibilityTimeout": "00:00:00",
-            "batchSize": 32,
-            "maxDequeueCount": 5,
-            "newBatchThreshold": 16
+            "maxPollingInterval": "00:00:30"
         }
     },
     "logging": {
