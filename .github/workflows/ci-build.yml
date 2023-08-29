@@ -13,12 +13,18 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Setup .NET 7.0 SDK
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 7.x
+        include-prerelease: false
     
     - name: Setup .NET 6.0 SDK
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: 6.0.x
-        include-prerelease: true
+        dotnet-version: 6.x
+        include-prerelease: false
 
     - name: Setup .NET 3.1 SDK
       uses: actions/setup-dotnet@v1
