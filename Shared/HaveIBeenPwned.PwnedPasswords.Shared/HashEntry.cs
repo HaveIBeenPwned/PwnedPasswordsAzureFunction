@@ -3,19 +3,47 @@
 
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace HaveIBeenPwned.PwnedPasswords
 {
     public struct HashEntry : IDisposable, IComparable<HashEntry>, IEquatable<HashEntry>, IComparable<ReadOnlyMemory<byte>>, IComparer<ReadOnlyMemory<byte>>
     {
         public static IComparer<ReadOnlyMemory<byte>> HashComparer { get; } = default(HashEntry);
-        private readonly Memory<byte> _data = Memory<byte>.Empty;
+        private Memory<byte> _data = Memory<byte>.Empty;
 
+        [JsonPropertyName("hash")]
+        public string HashText
+        {
+            get
+            {
+                return Hash.ConvertToHex();
+            }
+            set
+            {
+                if(value.Length % 2 == 0 && value.IsHexStringOfLength(value.Length))
+                {
+                    int hashLengthInBytes = value.Length / 2;
+                    _data = ArrayPool<byte>.Shared.Rent(hashLengthInBytes + 4).AsMemory(0, hashLengthInBytes + 4);
+                    Span<byte> bytes = stackalloc byte[hashLengthInBytes];
+                    for (int i = 0; i < hashLengthInBytes; i++)
+                    {
+                        bytes[i] = (byte)((value[i * 2].ToByte() << 4) | value[i * 2 + 1].ToByte());
+                    }
+
+                    bytes.CopyTo(_data.Span);
+                }
+            }
+        }
+
+        [JsonIgnore]
         public ReadOnlyMemory<byte> Hash => _data.Slice(0, _data.Length - 4);
+        [JsonPropertyName("num")]
         public int Prevalence
         {
             get => BinaryPrimitives.ReadInt32BigEndian(_data.Slice(_data.Length - 4).Span);

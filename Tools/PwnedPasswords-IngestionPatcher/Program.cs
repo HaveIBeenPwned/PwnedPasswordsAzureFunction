@@ -8,10 +8,9 @@ using System.Text.Json.Serialization;
 using HaveIBeenPwned.PwnedPasswords;
 
 Console.WriteLine("Hello, World!");
-
 Dictionary<string, List<HashEntry>> entries = new ();
 
-foreach (string ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ingested\"))
+foreach (string ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ingested"))
 {
     using (Stream stream = File.OpenRead(ingestionFile))
     {
@@ -46,7 +45,8 @@ await Parallel.ForEachAsync(entries, WriteEnties);
 
 async ValueTask WriteEnties(KeyValuePair<string, List<HashEntry>> entry, CancellationToken cancellationToken)
 {
-    await Task.WhenAll(ParseAndUpdateHashFile(entry.Key, entry.Value, true), ParseAndUpdateHashFile(entry.Key, entry.Value, false)).ConfigureAwait(false);
+    await ParseAndUpdateHashFile(entry.Key, entry.Value, false).ConfigureAwait(false);
+    entries.Remove(entry.Key);
     num++;
     if (num % 100 == 0)
     {
@@ -56,21 +56,21 @@ async ValueTask WriteEnties(KeyValuePair<string, List<HashEntry>> entry, Cancell
 
 static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEntries, bool writeBinary)
 {
-    byte[] Newline = new[] { (byte)'\r', (byte)'\n' };
+    byte[] Newline = "\r\n"u8.ToArray();
 
     try
     {
         SortedSet<HashEntry> entries = new();
 
         // Let's read the existing blob into a sorted dictionary so we can write it back in order!
-        FileStream file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\hashes\{prefix}.bin", new FileStreamOptions()
+        FileStream file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ntlmhashes\{prefix}.txt", new FileStreamOptions()
         {
             Access = FileAccess.Read,
             Mode = FileMode.Open,
             Options = FileOptions.Asynchronous | FileOptions.SequentialScan
         });
         var pipeReader = PipeReader.Create(file);
-        await foreach (HashEntry entry in HashEntry.ParseBinaryHashEntries(prefix, 16, pipeReader))
+        await foreach (HashEntry entry in HashEntry.ParseTextHashEntries(prefix, pipeReader))
         {
             entries.Add(entry);
         }
@@ -91,7 +91,7 @@ static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEnt
 
         file.Dispose();
 
-        file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\updatedhashes\{prefix}.{(writeBinary ? "bin" : "txt")}", new FileStreamOptions()
+        file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\updatedntlmfbihashes\{prefix}.{(writeBinary ? "bin" : "txt")}", new FileStreamOptions()
         {
             Access = FileAccess.Write,
             Mode = FileMode.Create,

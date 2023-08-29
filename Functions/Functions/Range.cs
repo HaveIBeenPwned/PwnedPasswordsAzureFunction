@@ -41,14 +41,14 @@ public class Range
             return req.BadRequest("The hash was not in a valid format");
         }
 
-        string mode = "sha1";
+        HashType mode = HashType.SHA1;
         if (req.Query.TryGetValue("mode", out Microsoft.Extensions.Primitives.StringValues queryMode))
 
         {
             mode = (string)queryMode switch
             {
-                "ntlm" => "ntlm",
-                _ => "sha1",
+                "ntlm" => HashType.NTLM,
+                _ => HashType.SHA1,
             };
         }
 

@@ -7,6 +7,8 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 using Xunit;
@@ -32,6 +34,31 @@ namespace HaveIBeenPwned.PwnedPasswords.Tests
 01306E7C20BE7E0B28B0E8D87EFC634479B:8
 0152C0E9B6DAFEB1D101A541D801095E22B:1
 016C6C075173C163757BCEA8139D4CC69CF:15";
+
+        [Fact]
+        public async Task SerializesToJsonCorrectly()
+        {
+            string prefix = "00000";
+            MemoryStream stream = new(Encoding.ASCII.GetBytes(_sHA1Hashes));
+            List<HashEntry> entries = new();
+            await foreach (HashEntry entry in HashEntry.ParseTextHashEntries(prefix, PipeReader.Create(stream)))
+            {
+                Assert.True(entry.Prevalence > 0);
+                Assert.Equal(20, entry.Hash.Length);
+                entries.Add(entry);
+            }
+
+            Assert.Equal(16, entries.Count);
+            string serialized = JsonSerializer.Serialize(entries);
+            Assert.NotNull(serialized);
+            Assert.True(serialized.Length > 0);
+            List<HashEntry>? deserializedItems = JsonSerializer.Deserialize<List<HashEntry>>(serialized);
+            Assert.NotNull(deserializedItems);
+            for(int i = 0; i < entries.Count; i++)
+            {
+                Assert.Equal(entries[i], deserializedItems[i]);
+            }
+        }
 
         [Fact]
         public void CanBePutIntoSortedList()
