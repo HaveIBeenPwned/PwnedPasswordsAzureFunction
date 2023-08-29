@@ -41,7 +41,7 @@ public class BlobStorage : IFileStorage
 
     public async Task<Stream> GetIngestionFileAsync(string transactionId, CancellationToken cancellationToken = default)
     {
-        Response<BlobDownloadStreamingResult>? result = await _ingestionContainerClient.GetBlobClient(transactionId).DownloadStreamingAsync(cancellationToken: cancellationToken);
+        Response<BlobDownloadStreamingResult>? result = await _ingestionContainerClient.GetBlobClient(transactionId).DownloadStreamingAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         return result.Value.Content;
     }
 

@@ -15,11 +15,13 @@ public class BlobStorageTests
     [Fact]
     public void RendersHashesWithoutEndingNewline()
     {
-        SortedDictionary<string, int> fakeHahes = new SortedDictionary<string, int>();
-        fakeHahes.Add("ABCDEF", 0);
-        fakeHahes.Add("FEDCBA", 1234);
+        SortedDictionary<string, int> fakeHahes = new()
+        {
+            { "ABCDEF", 0 },
+            { "FEDCBA", 1234 }
+        };
 
-        StringWriter writer = new StringWriter();
+        StringWriter writer = new();
         BlobStorage.RenderHashes(fakeHahes, writer);
         Assert.Equal($"ABCDEF:0{writer.NewLine}FEDCBA:1234", writer.ToString());
     }
@@ -34,6 +36,6 @@ public class BlobStorageTests
             return;
         }
 
-        Assert.True(false, $"Failed to parse {hashLine} successfully");
+        Assert.Fail($"Failed to parse {hashLine} successfully");
     }
 }

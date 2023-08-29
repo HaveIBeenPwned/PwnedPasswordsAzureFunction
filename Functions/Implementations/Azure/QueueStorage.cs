@@ -17,7 +17,7 @@ public class QueueStorage : IQueueStorage
 
     public async Task PushTransactionAsync(QueueTransactionEntry entry, CancellationToken cancellationToken = default)
     {
-        await _transactionQueueClient.SendMessageAsync(JsonSerializer.Serialize(entry), cancellationToken);
+        await _transactionQueueClient.SendMessageAsync(JsonSerializer.Serialize(entry), cancellationToken).ConfigureAwait(false);
         _log.LogInformation("Subscription {SubscriptionId} successfully queued transaction {TransactionId} for processing.", entry.SubscriptionId, entry.TransactionId);
     }
 

@@ -31,12 +31,7 @@ public class ProcessTransaction
         SortedDictionary<string, List<HashEntry>> ntlmEntries = new();
         SortedDictionary<string, List<HashEntry>> sha1Entries = new();
 
-        QueueTransactionEntry? item = JsonSerializer.Deserialize<QueueTransactionEntry>(Encoding.UTF8.GetString(queueItem));
-        if (item == null)
-        {
-            throw new ArgumentException("Queue item contains no data.", nameof(queueItem));
-        }
-
+        QueueTransactionEntry? item = JsonSerializer.Deserialize<QueueTransactionEntry>(Encoding.UTF8.GetString(queueItem)) ?? throw new ArgumentException("Queue item contains no data.", nameof(queueItem));
         Activity.Current?.AddTag("SubscriptionId", item.SubscriptionId).AddTag("TransactionId", item.TransactionId);
         try
         {
@@ -45,7 +40,7 @@ public class ProcessTransaction
                 _log.LogInformation("Subscription {SubscriptionId} started processing for transaction {TransactionId}. Fetching transaction entries.", item.SubscriptionId, item.TransactionId);
                 using (Stream stream = await _fileStorage.GetIngestionFileAsync(item.TransactionId, cancellationToken).ConfigureAwait(false))
                 {
-                    await foreach (PwnedPasswordsIngestionValue? entry in JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(stream, cancellationToken: cancellationToken))
+                    await foreach (PwnedPasswordsIngestionValue? entry in JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(stream, cancellationToken: cancellationToken).ConfigureAwait(false))
                     {
                         if (entry != null)
                         {
@@ -88,7 +83,7 @@ public class ProcessTransaction
                     {
                         if (num >= 500)
                         {
-                            await QueueHashBatchForProcessing(batch);
+                            await QueueHashBatchForProcessing(batch).ConfigureAwait(false);
                             num = 0;
                         }
 
@@ -100,7 +95,7 @@ public class ProcessTransaction
                     {
                         if (num >= 500)
                         {
-                            await QueueHashBatchForProcessing(batch);
+                            await QueueHashBatchForProcessing(batch).ConfigureAwait(false);
                             num = 0;
                         }
 
@@ -110,7 +105,7 @@ public class ProcessTransaction
 
                     if (num > 0)
                     {
-                        await QueueHashBatchForProcessing(batch);
+                        await QueueHashBatchForProcessing(batch).ConfigureAwait(false);
                     }
                 }
             }

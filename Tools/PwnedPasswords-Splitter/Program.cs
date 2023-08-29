@@ -7,7 +7,7 @@ using HaveIBeenPwned.PwnedPasswords;
 int i = 0;
 byte[] Newline = new[] { (byte)'\r', (byte)'\n' };
 
-var asyncEnumerable = SplitHashesAsync(@"C:\Users\stefa\Downloads\pwned-passwords-ntlm-ordered-by-hash-v8\pwned-passwords-ntlm-ordered-by-hash-v8.txt", false);
+IAsyncEnumerable<(string file, List<HashEntry> entries, bool writeBinary)> asyncEnumerable = SplitHashesAsync(@"C:\Users\stefa\Downloads\pwned-passwords-ntlm-ordered-by-hash-v8\pwned-passwords-ntlm-ordered-by-hash-v8.txt", false);
 await Parallel.ForEachAsync(asyncEnumerable, WriteEntries).ConfigureAwait(false);
 
 async IAsyncEnumerable<(string file, List<HashEntry> entries, bool writeBinary)> SplitHashesAsync(string fileName, bool writeBinary)

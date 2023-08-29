@@ -45,7 +45,7 @@ public class Submit
         Activity.Current?.AddTag("SubscriptionId", subscriptionId);
         try
         {
-            (bool Success, IActionResult? Error) = await req.TryValidateEntries(JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(req.Body));
+            (bool Success, IActionResult? Error) = await req.TryValidateEntries(JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(req.Body)).ConfigureAwait(false);
             if (Success)
             {
                 // Now insert the data

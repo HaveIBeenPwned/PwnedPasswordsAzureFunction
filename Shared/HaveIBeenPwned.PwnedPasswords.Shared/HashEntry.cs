@@ -20,7 +20,7 @@ namespace HaveIBeenPwned.PwnedPasswords
         [JsonPropertyName("hash")]
         public string HashText
         {
-            get
+            readonly get
             {
                 return Hash.ConvertToHex();
             }
@@ -42,9 +42,9 @@ namespace HaveIBeenPwned.PwnedPasswords
         }
 
         [JsonIgnore]
-        public ReadOnlyMemory<byte> Hash => _data.Slice(0, _data.Length - 4);
+        public readonly ReadOnlyMemory<byte> Hash => _data.Slice(0, _data.Length - 4);
         [JsonPropertyName("num")]
-        public int Prevalence
+        public readonly int Prevalence
         {
             get => BinaryPrimitives.ReadInt32BigEndian(_data.Slice(_data.Length - 4).Span);
             set => BinaryPrimitives.WriteInt32BigEndian(_data.Slice(_data.Length - 4).Span, value);
@@ -307,7 +307,7 @@ namespace HaveIBeenPwned.PwnedPasswords
             await pipeReader.CompleteAsync().ConfigureAwait(false);
         }
 
-        public void WriteAsBinaryTo<T>(T bufferWriter, bool omitPrefix) where T : IBufferWriter<byte>
+        public readonly void WriteAsBinaryTo<T>(T bufferWriter, bool omitPrefix) where T : IBufferWriter<byte>
         {
             if (omitPrefix)
             {
@@ -325,7 +325,7 @@ namespace HaveIBeenPwned.PwnedPasswords
             }
         }
 
-        public void WriteTextTo<T>(T bufferWriter, bool omitPrefix) where T : IBufferWriter<byte>
+        public readonly void WriteTextTo<T>(T bufferWriter, bool omitPrefix) where T : IBufferWriter<byte>
         {
             int hashLength = Hash.Length * 2;
             Span<char> hashChars = stackalloc char[hashLength + 11];
@@ -338,7 +338,7 @@ namespace HaveIBeenPwned.PwnedPasswords
 
 
 
-        public void Dispose()
+        public readonly void Dispose()
         {
             if (MemoryMarshal.TryGetArray(_data, out ArraySegment<byte> segment) && segment.Array is not null)
             {
@@ -369,17 +369,34 @@ namespace HaveIBeenPwned.PwnedPasswords
             }
         }
 
-        public void Deconstruct(out ReadOnlyMemory<byte> hash, out int prevalence)
+        public readonly void Deconstruct(out ReadOnlyMemory<byte> hash, out int prevalence)
         {
             hash = Hash.ToArray();
             prevalence = Prevalence;
         }
 
-        public int CompareTo(HashEntry other) => Hash.Span.SequenceCompareTo(other.Hash.Span);
-        public bool Equals(HashEntry other) => Hash.Span.SequenceEqual(other.Hash.Span) && Prevalence == other.Prevalence;
-        public int CompareTo(ReadOnlyMemory<byte> other) => Hash.Span.SequenceCompareTo(other.Span);
-        public int Compare(ReadOnlyMemory<byte> x, ReadOnlyMemory<byte> y) => x.Span.SequenceCompareTo(y.Span);
+        public readonly int CompareTo(HashEntry other) => Hash.Span.SequenceCompareTo(other.Hash.Span);
+        public readonly bool Equals(HashEntry other) => Hash.Span.SequenceEqual(other.Hash.Span) && Prevalence == other.Prevalence;
+        public readonly int CompareTo(ReadOnlyMemory<byte> other) => Hash.Span.SequenceCompareTo(other.Span);
+        public readonly int Compare(ReadOnlyMemory<byte> x, ReadOnlyMemory<byte> y) => x.Span.SequenceCompareTo(y.Span);
 
-        public override string ToString() => $"{Hash.Span.ConvertToHex()}:{Prevalence.ToString(CultureInfo.InvariantCulture)}";
+        public override readonly string ToString() => $"{Hash.Span.ConvertToHex()}:{Prevalence.ToString(CultureInfo.InvariantCulture)}";
+
+        public override readonly bool Equals(object? obj)
+        {
+            return obj is HashEntry entry && Equals(entry);
+        }
+
+        public override readonly int GetHashCode() => HashCode.Combine(_data);
+
+        public static bool operator ==(HashEntry left, HashEntry right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(HashEntry left, HashEntry right)
+        {
+            return !(left == right);
+        }
     }
 }

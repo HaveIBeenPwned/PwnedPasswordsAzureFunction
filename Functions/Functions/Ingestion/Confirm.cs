@@ -44,9 +44,9 @@ public class Confirm
             if (data != null && !string.IsNullOrEmpty(data.TransactionId))
             {
                 Activity.Current?.AddTag("TransactionId", data.TransactionId);
-                if (await _tableStorage.ConfirmAppendDataAsync(subscriptionId, data))
+                if (await _tableStorage.ConfirmAppendDataAsync(subscriptionId, data).ConfigureAwait(false))
                 {
-                    await _queueStorage.PushTransactionAsync(new QueueTransactionEntry { SubscriptionId = subscriptionId, TransactionId = data.TransactionId });
+                    await _queueStorage.PushTransactionAsync(new QueueTransactionEntry { SubscriptionId = subscriptionId, TransactionId = data.TransactionId }).ConfigureAwait(false);
                 }
 
                 return new StatusCodeResult(StatusCodes.Status200OK);

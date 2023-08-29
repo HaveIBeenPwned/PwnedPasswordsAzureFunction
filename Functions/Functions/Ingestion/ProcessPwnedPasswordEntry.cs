@@ -32,12 +32,14 @@ public class ProcessPwnedPasswordEntryBatch
             Activity.Current?.AddTag("SubscriptionId", batch.SubscriptionId).AddTag("TransactionId", batch.TransactionId);
             foreach (KeyValuePair<string, List<HashEntry>> prefixBatch in batch.SHA1Entries)
             {
-                await Task.WhenAll(_tableStorage.MarkHashPrefixAsModified(prefixBatch.Key), UpdateHashfile(batch, prefixBatch.Key, HashType.SHA1, prefixBatch.Value)).ConfigureAwait(false);
+                await _tableStorage.MarkHashPrefixAsModified(prefixBatch.Key).ConfigureAwait(false);
+                await UpdateHashfile(batch, prefixBatch.Key, HashType.SHA1, prefixBatch.Value).ConfigureAwait(false);
             }
 
             foreach (KeyValuePair<string, List<HashEntry>> prefixBatch in batch.NTLMEntries)
             {
-                await Task.WhenAll(_tableStorage.MarkHashPrefixAsModified(prefixBatch.Key), UpdateHashfile(batch, prefixBatch.Key, HashType.NTLM, prefixBatch.Value)).ConfigureAwait(false);
+                await _tableStorage.MarkHashPrefixAsModified(prefixBatch.Key).ConfigureAwait(false);
+                await UpdateHashfile(batch, prefixBatch.Key, HashType.NTLM, prefixBatch.Value).ConfigureAwait(false);
             }
         }
 
@@ -71,7 +73,7 @@ public class ProcessPwnedPasswordEntryBatch
 
         // Let's read the existing blob into a sorted dictionary so we can write it back in order!
         SortedDictionary<string, int> hashes = new();
-        await foreach (HashEntry item in HashEntry.ParseTextHashEntries(prefix, PipeReader.Create(blobFile.Content)))
+        await foreach (HashEntry item in HashEntry.ParseTextHashEntries(prefix, PipeReader.Create(blobFile.Content)).ConfigureAwait(false))
         {
             hashes.Add(item.HashText[5..], item.Prevalence);
         }
