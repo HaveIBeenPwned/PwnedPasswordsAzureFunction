@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 using System.Threading.Channels;
 
+using Newtonsoft.Json.Linq;
+
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
 public class ProcessTransaction
@@ -26,12 +28,8 @@ public class ProcessTransaction
     [FunctionName("ProcessTransactionQueueItem")]
     public async Task Run([QueueTrigger("%TableNamespace%-transaction", Connection = "PwnedPasswordsConnectionString")] byte[] queueItem, CancellationToken cancellationToken)
     {
-        Channel<PasswordEntryBatch> channel = Channel.CreateBounded<PasswordEntryBatch>(new BoundedChannelOptions(Startup.Parallelism) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = true });
-        Task[] queueTasks = new Task[Startup.Parallelism];
-        for(int i = 0; i < queueTasks.Length; i++)
-        {
-            queueTasks[i] = ProcessQueueItem(channel);
-        }
+        SortedDictionary<string, List<HashEntry>> ntlmEntries = new();
+        SortedDictionary<string, List<HashEntry>> sha1Entries = new();
 
         QueueTransactionEntry? item = JsonSerializer.Deserialize<QueueTransactionEntry>(Encoding.UTF8.GetString(queueItem));
         if (item == null)
@@ -47,21 +45,35 @@ public class ProcessTransaction
                 _log.LogInformation("Subscription {SubscriptionId} started processing for transaction {TransactionId}. Fetching transaction entries.", item.SubscriptionId, item.TransactionId);
                 using (Stream stream = await _fileStorage.GetIngestionFileAsync(item.TransactionId, cancellationToken).ConfigureAwait(false))
                 {
-                    Dictionary<string, List<PwnedPasswordsIngestionValue>> entries = new Dictionary<string, List<PwnedPasswordsIngestionValue>>();
                     await foreach (PwnedPasswordsIngestionValue? entry in JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(stream, cancellationToken: cancellationToken))
                     {
                         if (entry != null)
                         {
                             entry.SHA1Hash = entry.SHA1Hash.ToUpperInvariant();
-                            entry.NTLMHash = entry.NTLMHash.ToUpperInvariant();
-                            string prefix = entry.SHA1Hash[..5];
-                            if (!entries.TryGetValue(prefix, out List<PwnedPasswordsIngestionValue>? values))
+                            string sha1Prefix = entry.SHA1Hash[..5];
+                            if (!sha1Entries.TryGetValue(sha1Prefix, out List<HashEntry>? sha1Values))
                             {
-                                values = new List<PwnedPasswordsIngestionValue>();
-                                entries[prefix] = values;
+                                sha1Values = new List<HashEntry>();
+                                sha1Entries[sha1Prefix] = sha1Values;
                             }
 
-                            values.Add(entry);
+                            if (HashEntry.TryParseFromText(entry.SHA1Hash, entry.Prevalence, out HashEntry sha1HashEntry))
+                            {
+                                sha1Values.Add(sha1HashEntry);
+                            }
+
+                            entry.NTLMHash = entry.NTLMHash.ToUpperInvariant();
+                            string ntlmPrefix = entry.NTLMHash[..5];
+                            if (!ntlmEntries.TryGetValue(ntlmPrefix, out List<HashEntry>? ntlmValues))
+                            {
+                                ntlmValues = new List<HashEntry>();
+                                ntlmEntries[ntlmPrefix] = ntlmValues;
+                            }
+
+                            if (HashEntry.TryParseFromText(entry.NTLMHash, entry.Prevalence, out HashEntry ntlmHashEntry))
+                            {
+                                ntlmValues.Add(ntlmHashEntry);
+                            }
                         }
                     }
 
@@ -72,50 +84,47 @@ public class ProcessTransaction
                         TransactionId = item.TransactionId,
                     };
 
-                    foreach (KeyValuePair<string, List<PwnedPasswordsIngestionValue>> entryBatch in entries)
+                    foreach (KeyValuePair<string, List<HashEntry>> entry in sha1Entries)
                     {
-                        if (num >= 300)
+                        if (num >= 500)
                         {
-                            PasswordEntryBatch currentBatch = batch;
-                            await channel.Writer.WriteAsync(currentBatch);
-                            batch = new PasswordEntryBatch
-                            {
-                                SubscriptionId = item.SubscriptionId,
-                                TransactionId = item.TransactionId,
-                            };
-
+                            await QueueHashBatchForProcessing(batch);
                             num = 0;
                         }
 
-                        batch.PasswordEntries.Add(entryBatch.Key, entryBatch.Value);
-                        num += entryBatch.Value.Count;
+                        batch.SHA1Entries.Add(entry.Key, entry.Value);
+                        num += entry.Value.Count;
+                    }
+
+                    foreach (KeyValuePair<string, List<HashEntry>> entry in ntlmEntries)
+                    {
+                        if (num >= 500)
+                        {
+                            await QueueHashBatchForProcessing(batch);
+                            num = 0;
+                        }
+
+                        batch.NTLMEntries.Add(entry.Key, entry.Value);
+                        num += entry.Value.Count;
                     }
 
                     if (num > 0)
                     {
-                        await channel.Writer.WriteAsync(batch);
+                        await QueueHashBatchForProcessing(batch);
                     }
                 }
-
-                channel.Writer.TryComplete();
-                await Task.WhenAll(queueTasks);
             }
         }
         catch (Exception e)
         {
             _log.LogError(e, "Error processing transaction with id = {TransactionId} for subscription {SubscriptionId}.", item.TransactionId, item.SubscriptionId);
-            channel.Writer.TryComplete(e);
         }
     }
 
-    private async Task ProcessQueueItem(Channel<PasswordEntryBatch> channel, CancellationToken cancellationToken = default)
+    private async Task QueueHashBatchForProcessing(PasswordEntryBatch batch, CancellationToken cancellationToken = default)
     {
-        while(await channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            while (channel.Reader.TryRead(out PasswordEntryBatch? item) && item != null)
-            {
-                await _queueStorage.PushPasswordsAsync(item, cancellationToken).ConfigureAwait(false);
-            }
-        }
+        await _queueStorage.PushPasswordsAsync(batch, cancellationToken).ConfigureAwait(false);
+        batch.SHA1Entries.Clear();
+        batch.NTLMEntries.Clear();
     }
 }

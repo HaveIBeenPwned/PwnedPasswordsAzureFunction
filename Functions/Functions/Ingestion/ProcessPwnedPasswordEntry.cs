@@ -1,6 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.IO.Pipelines;
+
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
 public class ProcessPwnedPasswordEntryBatch
@@ -28,97 +30,70 @@ public class ProcessPwnedPasswordEntryBatch
         {
             // Let's set some activity tags and log scopes so we have event correlation in our logs!
             Activity.Current?.AddTag("SubscriptionId", batch.SubscriptionId).AddTag("TransactionId", batch.TransactionId);
-            foreach (KeyValuePair<string, List<PwnedPasswordsIngestionValue>> prefixBatch in batch.PasswordEntries)
+            foreach (KeyValuePair<string, List<HashEntry>> prefixBatch in batch.SHA1Entries)
             {
-                List<Task> tasks = new(2 + prefixBatch.Value.Count);
-                foreach (PwnedPasswordsIngestionValue item in prefixBatch.Value)
-                {
-                    tasks.Add(IncrementHashEntry(batch, item));
-                }
+                await Task.WhenAll(_tableStorage.MarkHashPrefixAsModified(prefixBatch.Key), UpdateHashfile(batch, prefixBatch.Key, HashType.SHA1, prefixBatch.Value)).ConfigureAwait(false);
+            }
 
-                tasks.Add(_tableStorage.MarkHashPrefixAsModified(prefixBatch.Key));
-                tasks.Add(UpdateHashfile(batch, prefixBatch.Key, prefixBatch.Value));
-                await Task.WhenAll(tasks).ConfigureAwait(false);
+            foreach (KeyValuePair<string, List<HashEntry>> prefixBatch in batch.NTLMEntries)
+            {
+                await Task.WhenAll(_tableStorage.MarkHashPrefixAsModified(prefixBatch.Key), UpdateHashfile(batch, prefixBatch.Key, HashType.NTLM, prefixBatch.Value)).ConfigureAwait(false);
             }
         }
 
-        async Task IncrementHashEntry(PasswordEntryBatch batch, PwnedPasswordsIngestionValue item, CancellationToken cancellationToken = default)
-        {
-            while (!await _tableStorage.AddOrIncrementHashEntry(batch, item, cancellationToken).ConfigureAwait(false))
-            {
-            }
-        }
-
-        async Task UpdateHashfile(PasswordEntryBatch batch, string prefix, List<PwnedPasswordsIngestionValue> batchEntries, CancellationToken cancellationToken = default)
+        async Task UpdateHashfile(PasswordEntryBatch batch, string prefix, HashType mode, List<HashEntry> batchEntries, CancellationToken cancellationToken = default)
         {
             bool blobUpdated = false;
             while (!blobUpdated)
             {
                 try
                 {
-                    blobUpdated = await ParseAndUpdateHashFile(batch, prefix, batchEntries, cancellationToken).ConfigureAwait(false);
+                    blobUpdated = await ParseAndUpdateHashFile(batch, prefix, mode, batchEntries, cancellationToken).ConfigureAwait(false);
                     if (!blobUpdated)
                     {
-                        _log.LogWarning("Subscription {SubscriptionId} failed to updated blob {HashPrefix} as part of transaction {TransactionId}! Will retry!", batch.SubscriptionId, prefix, batch.TransactionId);
+                        _log.LogWarning("Subscription {SubscriptionId} failed to update {Mode} blob {HashPrefix} as part of transaction {TransactionId}! Will retry!", batch.SubscriptionId, mode, prefix, batch.TransactionId);
                     }
                 }
                 catch (FileNotFoundException)
                 {
-                    _log.LogError("Subscription {SubscriptionId} is unable to find a hash file with prefix {prefix} as part of transaction {TransactionId}. Something is wrong as this shouldn't happen!", batch.SubscriptionId, prefix, batch.TransactionId);
+                    _log.LogError("Subscription {SubscriptionId} is unable to find a {Mode} hash file with prefix {prefix} as part of transaction {TransactionId}. Something is wrong as this shouldn't happen!", batch.SubscriptionId, mode, prefix, batch.TransactionId);
                     return;
                 }
             }
 
-            _log.LogInformation("Subscription {SubscriptionId} successfully updated blob {HashPrefix} as part of transaction {TransactionId}!", batch.SubscriptionId, prefix, batch.TransactionId);
+            _log.LogInformation("Subscription {SubscriptionId} successfully updated {Mode} blob {HashPrefix} as part of transaction {TransactionId}!", batch.SubscriptionId, mode, prefix, batch.TransactionId);
         }
     }
 
-    private async Task<bool> ParseAndUpdateHashFile(PasswordEntryBatch batch, string prefix, List<PwnedPasswordsIngestionValue> batchEntries, CancellationToken cancellationToken = default)
+    private async Task<bool> ParseAndUpdateHashFile(PasswordEntryBatch batch, string prefix, HashType mode, List<HashEntry> batchEntries, CancellationToken cancellationToken = default)
     {
-        PwnedPasswordsFile blobFile = await _blobStorage.GetHashFileAsync(prefix, "sha1", cancellationToken).ConfigureAwait(false);
+        PwnedPasswordsFile blobFile = await _blobStorage.GetHashFileAsync(prefix, mode, cancellationToken).ConfigureAwait(false);
 
         // Let's read the existing blob into a sorted dictionary so we can write it back in order!
-        SortedDictionary<string, int> hashes = ParseHashFile(blobFile);
+        SortedDictionary<string, int> hashes = new();
+        await foreach (HashEntry item in HashEntry.ParseTextHashEntries(prefix, PipeReader.Create(blobFile.Content)))
+        {
+            hashes.Add(item.HashText[5..], item.Prevalence);
+        }
 
         // We now have a sorted dictionary with the hashes for this prefix.
         // Let's add or update the suffixes with the prevalence counts.
-        foreach (PwnedPasswordsIngestionValue item in batchEntries)
+        foreach (HashEntry item in batchEntries)
         {
-            string suffix = item.SHA1Hash[5..];
+            string suffix = item.HashText[5..];
             if (hashes.ContainsKey(suffix))
             {
                 hashes[suffix] = hashes[suffix] + item.Prevalence;
-                _log.LogInformation("Subscription {SubscriptionId} updating suffix {HashSuffix} in blob {HashPrefix} from {PrevalenceBefore} to {PrevalenceAfter} as part of transaction {TransactionId}!", batch.SubscriptionId, suffix, prefix, hashes[suffix] - item.Prevalence, hashes[suffix], batch.TransactionId);
+                _log.LogInformation("Subscription {SubscriptionId} updating suffix {HashSuffix} in {Mode} blob {HashPrefix} from {PrevalenceBefore} to {PrevalenceAfter} as part of transaction {TransactionId}!", batch.SubscriptionId, suffix, mode, prefix, hashes[suffix] - item.Prevalence, hashes[suffix], batch.TransactionId);
             }
             else
             {
                 hashes.Add(suffix, item.Prevalence);
-                _log.LogInformation("Subscription {SubscriptionId} adding new suffix {HashSuffix} to blob {HashPrefix} with {Prevalence} as part of transaction {TransactionId}!", batch.SubscriptionId, suffix, prefix, item.Prevalence, batch.TransactionId);
+                _log.LogInformation("Subscription {SubscriptionId} adding new suffix {HashSuffix} to {Mode} blob {HashPrefix} with {Prevalence} as part of transaction {TransactionId}!", batch.SubscriptionId, suffix, mode, prefix, item.Prevalence, batch.TransactionId);
             }
         }
 
         // Now let's try to update the current blob with the new prevalence count!
-        return await _blobStorage.UpdateHashFileAsync(prefix, hashes, blobFile.ETag, cancellationToken).ConfigureAwait(false);
-    }
-
-    private static SortedDictionary<string, int> ParseHashFile(PwnedPasswordsFile blobFile)
-    {
-        var hashes = new SortedDictionary<string, int>();
-        using (var reader = new StreamReader(blobFile.Content))
-        {
-            string? hashLine = reader.ReadLine();
-            while (hashLine != null)
-            {
-                // Let's make sure we can parse this as a proper hash!
-                if (!string.IsNullOrEmpty(hashLine) && hashLine.Length >= 37 && hashLine[35] == ':' && int.TryParse(hashLine[36..].Replace(",", ""), out int currentPrevalence) && currentPrevalence > 0)
-                {
-                    hashes.Add(hashLine[..35], currentPrevalence);
-                }
-
-                hashLine = reader.ReadLine();
-            }
-        }
-
-        return hashes;
+        return await _blobStorage.UpdateHashFileAsync(prefix, mode, hashes, blobFile.ETag, cancellationToken).ConfigureAwait(false);
     }
 }

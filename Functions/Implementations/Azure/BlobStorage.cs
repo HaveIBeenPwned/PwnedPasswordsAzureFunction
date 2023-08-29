@@ -45,10 +45,10 @@ public class BlobStorage : IFileStorage
         return result.Value.Content;
     }
 
-    public async Task<PwnedPasswordsFile> GetHashFileAsync(string hashPrefix, string mode, CancellationToken cancellationToken = default)
+    public async Task<PwnedPasswordsFile> GetHashFileAsync(string hashPrefix, HashType mode, CancellationToken cancellationToken = default)
     {
         string fileName = $"{hashPrefix}.txt";
-        BlobClient blobClient = mode == "sha1" ? _blobContainerSha1Client.GetBlobClient(fileName) : _blobContainerNtlmClient.GetBlobClient(fileName);
+        BlobClient blobClient = GetHashBlobClient(mode, fileName);
 
         try
         {
@@ -62,10 +62,10 @@ public class BlobStorage : IFileStorage
         }
     }
 
-    public async Task<bool> UpdateHashFileAsync(string hashPrefix, SortedDictionary<string, int> hashes, string etag, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateHashFileAsync(string hashPrefix, HashType mode, SortedDictionary<string, int> hashes, string etag, CancellationToken cancellationToken = default)
     {
         string fileName = $"{hashPrefix}.txt";
-        BlobClient blobClient = _blobContainerSha1Client.GetBlobClient(fileName);
+        BlobClient blobClient = GetHashBlobClient(mode, fileName);
 
         using (MemoryStream memStream = s_manager.GetStream())
         {
@@ -88,6 +88,8 @@ public class BlobStorage : IFileStorage
             }
         }
     }
+
+    private BlobClient GetHashBlobClient(HashType mode, string fileName) => mode == HashType.SHA1 ? _blobContainerSha1Client.GetBlobClient(fileName) : _blobContainerNtlmClient.GetBlobClient(fileName);
 
     public static void RenderHashes(SortedDictionary<string, int> hashes, TextWriter writer)
     {

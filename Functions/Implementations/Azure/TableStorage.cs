@@ -83,49 +83,6 @@ public sealed class TableStorage : ITableStorage
         }
     }
 
-    public async Task<List<PwnedPasswordsIngestionValue>> GetTransactionValuesAsync(string subscriptionId, string transactionId, CancellationToken cancellationToken = default)
-    {
-        var entries = new List<PwnedPasswordsIngestionValue>();
-        AsyncPageable<AppendDataEntity> transactionDataResponse = _dataTable.QueryAsync<AppendDataEntity>(x => x.PartitionKey == transactionId, cancellationToken: cancellationToken);
-        await foreach (AppendDataEntity item in transactionDataResponse)
-        {
-            entries.Add(new PwnedPasswordsIngestionValue { SHA1Hash = item.RowKey, NTLMHash = item.NTLMHash, Prevalence = item.Prevalence });
-        }
-
-        return entries;
-    }
-
-    public async Task<bool> AddOrIncrementHashEntry(PasswordEntryBatch batch, PwnedPasswordsIngestionValue value, CancellationToken cancellationToken = default)
-    {
-        string partitionKey = value.SHA1Hash[..5];
-        string rowKey = value.SHA1Hash[5..];
-
-        try
-        {
-            try
-            {
-                Response<PwnedPasswordEntity> entityResponse = await _hashDataTable.GetEntityAsync<PwnedPasswordEntity>(partitionKey, rowKey, cancellationToken: cancellationToken).ConfigureAwait(false);
-                PwnedPasswordEntity pwnedPassword = entityResponse.Value;
-                pwnedPassword.Prevalence += value.Prevalence;
-                await _hashDataTable.UpdateEntityAsync(pwnedPassword, pwnedPassword.ETag, cancellationToken: cancellationToken).ConfigureAwait(false);
-                _log.LogInformation("Subscription {SubscriptionId} updated SHA1 entry {SHA1} from {PrevalenceBefore} to {PrevalenceAfter} as part of transaction {TransactionId}", batch.SubscriptionId, value.SHA1Hash, pwnedPassword.Prevalence - value.Prevalence, pwnedPassword.Prevalence, batch.TransactionId);
-            }
-            // If the item doesn't exist
-            catch (RequestFailedException e) when (e.Status == StatusCodes.Status404NotFound)
-            {
-                await _hashDataTable.AddEntityAsync(new PwnedPasswordEntity { PartitionKey = partitionKey, RowKey = rowKey, NTLMHash = value.NTLMHash, Prevalence = value.Prevalence }, cancellationToken).ConfigureAwait(false);
-                _log.LogInformation("Subscription {SubscriptionId} added new SHA1 entry {SHA1} with {Prevalence} as part of transaction {TransactionId}", batch.SubscriptionId, value.SHA1Hash, value.Prevalence, batch.TransactionId);
-            }
-        }
-        catch (RequestFailedException e) when (e.Status == StatusCodes.Status412PreconditionFailed || e.Status == StatusCodes.Status409Conflict)
-        {
-            _log.LogWarning(e, $"Unable to update or insert PwnedPasswordEntity {partitionKey}:{rowKey} as it has already been updated.");
-            return false;
-        }
-
-        return true;
-    }
-
     public async Task MarkHashPrefixAsModified(string prefix, CancellationToken cancellationToken = default)
     {
         await _cachePurgeTable.UpsertEntityAsync(new TableEntity($"{DateTime.UtcNow.Year}-{DateTime.UtcNow.Month}-{DateTime.UtcNow.Day}", prefix), cancellationToken: cancellationToken).ConfigureAwait(false);
