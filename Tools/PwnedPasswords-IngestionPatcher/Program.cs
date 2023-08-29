@@ -10,7 +10,7 @@ using HaveIBeenPwned.PwnedPasswords;
 Console.WriteLine("Hello, World!");
 Dictionary<string, List<HashEntry>> entries = new ();
 
-foreach (string ingestionFile in Directory.EnumerateFiles($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ingested"))
+foreach (string ingestionFile in Directory.EnumerateFiles($@"**REPLACE WITH INPUT**"))
 {
     using (Stream stream = File.OpenRead(ingestionFile))
     {
@@ -63,7 +63,7 @@ static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEnt
         SortedSet<HashEntry> entries = new();
 
         // Let's read the existing blob into a sorted dictionary so we can write it back in order!
-        FileStream file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\ntlmhashes\{prefix}.txt", new FileStreamOptions()
+        FileStream file = File.Open($@"**REPLACE WITH OUTPUT**\{prefix}.txt", new FileStreamOptions()
         {
             Access = FileAccess.Read,
             Mode = FileMode.Open,
@@ -91,7 +91,7 @@ static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEnt
 
         file.Dispose();
 
-        file = File.Open($@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\updatedntlmfbihashes\{prefix}.{(writeBinary ? "bin" : "txt")}", new FileStreamOptions()
+        file = File.Open($@"**REPLACE WITH OUTPUT**\{prefix}.{(writeBinary ? "bin" : "txt")}", new FileStreamOptions()
         {
             Access = FileAccess.Write,
             Mode = FileMode.Create,
