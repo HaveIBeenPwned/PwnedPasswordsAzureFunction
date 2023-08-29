@@ -73,22 +73,23 @@ public class ProcessPwnedPasswordEntryBatch
         SortedDictionary<string, int> hashes = new();
         await foreach (HashEntry item in HashEntry.ParseTextHashEntries(prefix, PipeReader.Create(blobFile.Content)))
         {
-            hashes.Add(item.HashText, item.Prevalence);
+            hashes.Add(item.HashText[5..], item.Prevalence);
         }
 
         // We now have a sorted dictionary with the hashes for this prefix.
         // Let's add or update the suffixes with the prevalence counts.
         foreach (HashEntry item in batchEntries)
         {
-            if (hashes.ContainsKey(item.HashText))
+            string suffix = item.HashText[5..];
+            if (hashes.ContainsKey(suffix))
             {
-                hashes[item.HashText] = hashes[item.HashText] + item.Prevalence;
-                _log.LogInformation("Subscription {SubscriptionId} updating {HashSuffix} in {Mode} blob {HashPrefix} from {PrevalenceBefore} to {PrevalenceAfter} as part of transaction {TransactionId}!", batch.SubscriptionId, item.HashText[5..], mode, prefix, hashes[item.HashText] - item.Prevalence, hashes[item.HashText], batch.TransactionId);
+                hashes[suffix] = hashes[suffix] + item.Prevalence;
+                _log.LogInformation("Subscription {SubscriptionId} updating suffix {HashSuffix} in {Mode} blob {HashPrefix} from {PrevalenceBefore} to {PrevalenceAfter} as part of transaction {TransactionId}!", batch.SubscriptionId, suffix, mode, prefix, hashes[suffix] - item.Prevalence, hashes[suffix], batch.TransactionId);
             }
             else
             {
-                hashes.Add(item.HashText, item.Prevalence);
-                _log.LogInformation("Subscription {SubscriptionId} adding new hash {HashSuffix} to {Mode} blob {HashPrefix} with {Prevalence} as part of transaction {TransactionId}!", batch.SubscriptionId, item.HashText[5..], mode, prefix, item.Prevalence, batch.TransactionId);
+                hashes.Add(suffix, item.Prevalence);
+                _log.LogInformation("Subscription {SubscriptionId} adding new suffix {HashSuffix} to {Mode} blob {HashPrefix} with {Prevalence} as part of transaction {TransactionId}!", batch.SubscriptionId, suffix, mode, prefix, item.Prevalence, batch.TransactionId);
             }
         }
 

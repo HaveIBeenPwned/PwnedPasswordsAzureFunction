@@ -98,11 +98,11 @@ public class BlobStorage : IFileStorage
         {
             if (++i < hashes.Count)
             {
-                writer.WriteLine($"{item.Key[5..]}:{item.Value:D}");
+                writer.WriteLine($"{item.Key}:{item.Value:D}");
             }
             else
             {
-                writer.Write($"{item.Key[5..]}:{item.Value:D}");
+                writer.Write($"{item.Key}:{item.Value:D}");
             }
         }
     }
