@@ -31,12 +31,7 @@ public class ProcessTransaction
         SortedDictionary<string, List<HashEntry>> ntlmEntries = new();
         SortedDictionary<string, List<HashEntry>> sha1Entries = new();
 
-        QueueTransactionEntry? item = JsonSerializer.Deserialize<QueueTransactionEntry>(Encoding.UTF8.GetString(queueItem));
-        if (item == null)
-        {
-            throw new ArgumentException("Queue item contains no data.", nameof(queueItem));
-        }
-
+        QueueTransactionEntry? item = JsonSerializer.Deserialize<QueueTransactionEntry>(Encoding.UTF8.GetString(queueItem)) ?? throw new ArgumentException("Queue item contains no data.", nameof(queueItem));
         Activity.Current?.AddTag("SubscriptionId", item.SubscriptionId).AddTag("TransactionId", item.TransactionId);
         try
         {

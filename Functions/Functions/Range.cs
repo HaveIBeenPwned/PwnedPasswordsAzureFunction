@@ -73,7 +73,7 @@ public class PwnedPasswordsFileResult : IActionResult
 {
     private readonly PwnedPasswordsFile _pwnedPasswordsFile;
     private readonly IList<Microsoft.Net.Http.Headers.StringWithQualityHeaderValue> _acceptEncoding;
-    private static readonly RecyclableMemoryStreamManager s_recyclableMemoryStreamManager = new RecyclableMemoryStreamManager();
+    private static readonly RecyclableMemoryStreamManager s_recyclableMemoryStreamManager = new();
 
     public PwnedPasswordsFileResult(PwnedPasswordsFile pwnedPasswordsFile, IList<Microsoft.Net.Http.Headers.StringWithQualityHeaderValue> acceptEncoding)
     {
@@ -88,7 +88,7 @@ public class PwnedPasswordsFileResult : IActionResult
         context.HttpContext.Response.Headers["Last-Modified"] = _pwnedPasswordsFile.LastModified.ToString("R");
         context.HttpContext.Response.Headers["ETag"] = _pwnedPasswordsFile.ETag;
         using MemoryStream tempStream = s_recyclableMemoryStreamManager.GetStream();
-        using var pwnedStream = _pwnedPasswordsFile.Content;
+        using Stream pwnedStream = _pwnedPasswordsFile.Content;
         if (_acceptEncoding.Any(x => x.Value == "br"))
         {
             using var brotliStream = new BrotliStream(tempStream, CompressionMode.Compress, true);
