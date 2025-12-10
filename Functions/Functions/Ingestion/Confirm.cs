@@ -3,25 +3,15 @@
 
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
-public class Confirm
+/// <summary>
+/// Pwned Passwords - Append handler
+/// </summary>
+/// <param name="blobStorage">The Blob storage</param>
+public class Confirm(ILogger<Confirm> log, ITableStorage tableStorage, IQueueStorage queueStorage)
 {
     private const string SubscriptionIdHeaderKey = "Api-Subscription-Id";
-    private readonly ILogger<Confirm> _log;
-    private readonly ITableStorage _tableStorage;
-    private readonly IQueueStorage _queueStorage;
 
-    /// <summary>
-    /// Pwned Passwords - Append handler
-    /// </summary>
-    /// <param name="blobStorage">The Blob storage</param>
-    public Confirm(ILogger<Confirm> log, ITableStorage tableStorage, IQueueStorage queueStorage)
-    {
-        _log = log;
-        _tableStorage = tableStorage;
-        _queueStorage = queueStorage;
-    }
-
-    [FunctionName("IngestionConfirm")]
+    [Function("IngestionConfirm")]
     public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "post", Route = "append/confirm")] HttpRequest req)
     {
         // Check that the data has been passed as JSON
@@ -40,13 +30,13 @@ public class Confirm
         Activity.Current?.AddTag("SubscriptionId", subscriptionId);
         try
         {
-            PwnedPasswordsTransaction? data = await JsonSerializer.DeserializeAsync<PwnedPasswordsTransaction>(req.Body).ConfigureAwait(false);
+            PwnedPasswordsTransaction data = await JsonSerializer.DeserializeAsync<PwnedPasswordsTransaction>(req.Body).ConfigureAwait(false);
             if (data != null && !string.IsNullOrEmpty(data.TransactionId))
             {
                 Activity.Current?.AddTag("TransactionId", data.TransactionId);
-                if (await _tableStorage.ConfirmAppendDataAsync(subscriptionId, data).ConfigureAwait(false))
+                if (await tableStorage.ConfirmAppendDataAsync(subscriptionId, data).ConfigureAwait(false))
                 {
-                    await _queueStorage.PushTransactionAsync(new QueueTransactionEntry { SubscriptionId = subscriptionId, TransactionId = data.TransactionId }).ConfigureAwait(false);
+                    await queueStorage.PushTransactionAsync(new QueueTransactionEntry { SubscriptionId = subscriptionId, TransactionId = data.TransactionId }).ConfigureAwait(false);
                 }
 
                 return new StatusCodeResult(StatusCodes.Status200OK);
@@ -69,7 +59,7 @@ public class Confirm
         catch (JsonException e)
         {
             // Error occurred trying to deserialize the JSON payload.
-            _log.LogError(e, "Unable to parson JSON");
+            log.LogError(e, "Unable to parson JSON");
             return req.BadRequest($"Unable to parse JSON: {e.Message}");
         }
     }

@@ -10,7 +10,7 @@ namespace HaveIBeenPwned.PwnedPasswords;
 /// </summary>
 public static class HashExtensions
 {
-    private static readonly char[] s_hexChars = new[] { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+    private static readonly char[] s_hexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
 
     /// <summary>
     /// Create a SHA-1 hash
@@ -54,7 +54,7 @@ public static class HashExtensions
             int hashIndex = i * 2;
             byte x = hash[i];
             output[hashIndex] = s_hexChars[(x >> 4) & 0xF];
-            output[hashIndex + 1] = s_hexChars[(x) & 0x0F];
+            output[hashIndex + 1] = s_hexChars[x & 0x0F];
         }
     }
 

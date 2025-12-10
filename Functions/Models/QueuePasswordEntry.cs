@@ -12,7 +12,7 @@ public class PasswordEntryBatch
     [JsonPropertyName("trxId")]
     public string TransactionId { get; set; } = "";
     [JsonPropertyName("sha1")]
-    public SortedDictionary<string, List<HashEntry>> SHA1Entries { get; set; } = new SortedDictionary<string, List<HashEntry>>();
+    public SortedDictionary<string, List<HashEntry>> SHA1Entries { get; set; } = [];
     [JsonPropertyName(name: "ntlm")]
-    public SortedDictionary<string, List<HashEntry>> NTLMEntries { get; set; } = new SortedDictionary<string, List<HashEntry>>();
+    public SortedDictionary<string, List<HashEntry>> NTLMEntries { get; set; } = [];
 }

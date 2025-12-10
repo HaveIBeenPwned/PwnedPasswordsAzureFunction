@@ -3,22 +3,13 @@
 
 namespace HaveIBeenPwned.PwnedPasswords.Functions.Ingestion;
 
-public class PurgeCloudflareCache
+/// <summary>
+/// Pwned Passwords - Append handler
+/// </summary>
+/// <param name="blobStorage">The Blob storage</param>
+public class PurgeCloudflareCache(ILogger<PurgeCloudflareCache> log, ITableStorage tableStorage, ICdnStorage cdnStorage)
 {
-    private readonly ILogger _log;
-    private readonly ITableStorage _tableStorage;
-    private readonly ICdnStorage _cdnStorage;
-
-    /// <summary>
-    /// Pwned Passwords - Append handler
-    /// </summary>
-    /// <param name="blobStorage">The Blob storage</param>
-    public PurgeCloudflareCache(ILogger<PurgeCloudflareCache> log, ITableStorage tableStorage, ICdnStorage cdnStorage)
-    {
-        _log = log;
-        _tableStorage = tableStorage;
-        _cdnStorage = cdnStorage;
-    }
+    private readonly ILogger _log = log;
     #region Timer Functions
 
     /// <summary>
@@ -27,7 +18,7 @@ public class PurgeCloudflareCache
     /// </summary>
     /// <param name="timer">Timer information</param>
     /// <param name="log">Logger</param>
-    [FunctionName("PurgeCloudflareCache")]
+    [Function("PurgeCloudflareCache")]
     public async Task Run(
 #if DEBUG
         // IMPORTANT: Do *not* enable RunOnStartup in production as it can result in excessive cost
@@ -45,11 +36,11 @@ public class PurgeCloudflareCache
         }
 
         // Get a list of the partitions which have been modified
-        List<string> modifiedPartitions = await _tableStorage.GetModifiedHashPrefixes(cancellationToken).ConfigureAwait(false);
+        List<string> modifiedPartitions = await tableStorage.GetModifiedHashPrefixes(cancellationToken).ConfigureAwait(false);
 
         if (modifiedPartitions.Count > 0)
         {
-            await _cdnStorage.PurgeFilesAsync(modifiedPartitions, cancellationToken).ConfigureAwait(false);
+            await cdnStorage.PurgeFilesAsync(modifiedPartitions, cancellationToken).ConfigureAwait(false);
             _log.LogInformation($"Successfully purged Cloudflare Cache.");
         }
         else

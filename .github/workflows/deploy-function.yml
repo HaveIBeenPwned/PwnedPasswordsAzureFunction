@@ -1,48 +1,24 @@
 name: Deploy Azure function to Azure Function App
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-    branches: [ main ]
-
-# CONFIGURATION
-# For help, go to https://github.com/Azure/Actions
-#
-# 1. Set up the following secrets in your repository:
-#   AZURE_FUNCTION_PUBLISH_PROFILE
-#
-# 2. Change these variables for your configuration:
-env:
-  AZURE_FUNCTIONAPP_NAME: pwnedpasswords-dev
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
 
 jobs:
   build-and-deploy:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     environment: dev
     steps:
-    - uses: actions/checkout@v2
-    
-    - name: Setup .NET 7.0
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 7.x
+    - uses: actions/checkout@v5
 
-    - name: Setup .NET 6.0
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 6.x
-    
-    - name: Setup .NET Core 3.1
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 3.1.x
-    
     - name: Build Function
-      run: dotnet build ./Functions/HaveIBeenPwned.PwnedPasswords.csproj --configuration Release --output ./output
+      run: dotnet publish ./Functions/HaveIBeenPwned.PwnedPasswords.csproj --configuration Release -r win-x86 --output ./output
 
     - name: Deploy Function to Azure
-      uses: Azure/functions-action@v1.3.1
+      uses: Azure/functions-action@v1
       with:
-        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-        package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+        app-name: 'pwnedpasswords-dev'
+        package: './output'
         publish-profile: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}

@@ -1,5 +1,5 @@
 ﻿using System.Net.Http;
-using System.Threading.Channels;
+using System.Net.Http.Json;
 
 namespace HaveIBeenPwned.PwnedPasswords.Implementations.Cloudflare;
 
@@ -44,8 +44,8 @@ public sealed class CdnStorage : ICdnStorage
             filesToPurge.Add(new UriBuilder(_options.Value.PwnedPasswordsBaseUrl) { Path = $"range/{hashPrefixes[i]}" }.Uri.GetComponents(UriComponents.Host | UriComponents.Path, UriFormat.SafeUnescaped));
             if (filesToPurge.Count == 30)
             {
-                string[] items = filesToPurge.ToArray();
-                await ProcessQueueItem(items).ConfigureAwait(false);
+                string[] items = [.. filesToPurge];
+                await ProcessQueueItem(items, cancellationToken).ConfigureAwait(false);
 
                 filesToPurge.Clear();
             }
@@ -53,28 +53,28 @@ public sealed class CdnStorage : ICdnStorage
 
         if (filesToPurge.Count > 0)
         {
-            string[] items = filesToPurge.ToArray();
-            await ProcessQueueItem(items).ConfigureAwait(false);
+            string[] items = [.. filesToPurge];
+            await ProcessQueueItem(items, cancellationToken).ConfigureAwait(false);
         }
     }
 
     private async Task ProcessQueueItem(string[] items, CancellationToken cancellationToken = default)
     {
         _log.LogInformation("Purging the following prefixes from Cloudflare Cache: {URIs}", string.Join(", ", items));
-        using (HttpResponseMessage? response = await _httpClient.PostAsJsonAsync(string.Empty, new { prefixes = items }, cancellationToken).ConfigureAwait(false))
+        using (HttpResponseMessage response = await _httpClient.PostAsJsonAsync(string.Empty, new { prefixes = items }, cancellationToken).ConfigureAwait(false))
         {
             try
             {
-                JsonDocument? result = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken).ConfigureAwait(false);
+                JsonDocument result = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken).ConfigureAwait(false);
                 bool success = result.RootElement.GetProperty("success").GetBoolean();
 
                 if (success)
                 {
-                    _log.LogInformation($"Purged {items.Length} files from Cloudflare Cache.");
+                    _log.LogInformation("Purged {NumItems} files from Cloudflare Cache.", items.Length);
                 }
                 else
                 {
-                    _log.LogError($"Cloudflare purge failed. Result: {result}");
+                    _log.LogError("Cloudflare purge failed. Result: {Result}", result);
                 }
             }
             catch (Exception ex)
