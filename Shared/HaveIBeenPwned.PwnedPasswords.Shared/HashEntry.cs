@@ -3,7 +3,6 @@
 
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
@@ -382,7 +381,7 @@ namespace HaveIBeenPwned.PwnedPasswords
 
         public override readonly string ToString() => $"{Hash.Span.ConvertToHex()}:{Prevalence.ToString(CultureInfo.InvariantCulture)}";
 
-        public override readonly bool Equals(object? obj)
+        public override readonly bool Equals(object obj)
         {
             return obj is HashEntry entry && Equals(entry);
         }

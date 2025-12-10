@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "HaveIBeenPwnedApi": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    }
+  }
+}

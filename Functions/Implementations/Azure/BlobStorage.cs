@@ -10,7 +10,7 @@ namespace HaveIBeenPwned.PwnedPasswords.Implementations.Azure;
 /// </summary>
 public class BlobStorage : IFileStorage
 {
-    private static readonly RecyclableMemoryStreamManager s_manager = new(RecyclableMemoryStreamManager.DefaultBlockSize, RecyclableMemoryStreamManager.DefaultLargeBufferMultiple, RecyclableMemoryStreamManager.DefaultMaximumBufferSize);
+    private static readonly RecyclableMemoryStreamManager s_manager = new();
 
     private readonly BlobContainerClient _blobContainerSha1Client;
     private readonly BlobContainerClient _blobContainerNtlmClient;
@@ -41,7 +41,7 @@ public class BlobStorage : IFileStorage
 
     public async Task<Stream> GetIngestionFileAsync(string transactionId, CancellationToken cancellationToken = default)
     {
-        Response<BlobDownloadStreamingResult>? result = await _ingestionContainerClient.GetBlobClient(transactionId).DownloadStreamingAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        Response<BlobDownloadStreamingResult> result = await _ingestionContainerClient.GetBlobClient(transactionId).DownloadStreamingAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         return result.Value.Content;
     }
 
@@ -67,7 +67,7 @@ public class BlobStorage : IFileStorage
         string fileName = $"{hashPrefix}.txt";
         BlobClient blobClient = GetHashBlobClient(mode, fileName);
 
-        using (MemoryStream memStream = s_manager.GetStream())
+        using (RecyclableMemoryStream memStream = s_manager.GetStream())
         {
             using (var writer = new StreamWriter(memStream))
             {
@@ -82,7 +82,7 @@ public class BlobStorage : IFileStorage
                 catch (RequestFailedException ex) when (ex.Status == StatusCodes.Status412PreconditionFailed)
                 {
                     // We have a write conflict, let's return false.
-                    _log.LogWarning(ex, $"Unable to update blob {fileName} since ETag does not match.");
+                    _log.LogWarning(ex, "Unable to update blob {FileName} since ETag does not match.", fileName);
                     return false;
                 }
             }

@@ -32,7 +32,7 @@ public class RangeTests
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
-        IActionResult? actualResponse = await function.RunAsync(context.Request, validHashPrefix);
+        IActionResult actualResponse = await function.RunAsync(context.Request, validHashPrefix);
 
         Assert.IsType<PwnedPasswordsFileResult>(actualResponse);
     }
@@ -45,9 +45,9 @@ public class RangeTests
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
-        IActionResult? actualResponse = await function.RunAsync(context.Request, "ABCDE");
+        IActionResult actualResponse = await function.RunAsync(context.Request, "ABCDE");
 
-        ContentResult? result = Assert.IsType<ContentResult>(actualResponse);
+        ContentResult result = Assert.IsType<ContentResult>(actualResponse);
         Assert.Equal(StatusCodes.Status404NotFound, result.StatusCode);
     }
 
@@ -63,9 +63,9 @@ public class RangeTests
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
-        IActionResult? actualResponse = await function.RunAsync(context.Request, invalidHashPrefix);
+        IActionResult actualResponse = await function.RunAsync(context.Request, invalidHashPrefix);
 
-        ContentResult? result = Assert.IsType<ContentResult>(actualResponse);
+        ContentResult result = Assert.IsType<ContentResult>(actualResponse);
         Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
     }
 
@@ -77,9 +77,9 @@ public class RangeTests
 
         var function = new Functions.Range(s_nullLogger, mockStorage.Object);
         var context = new DefaultHttpContext();
-        IActionResult? actualResponse = await function.RunAsync(context.Request, "ABCDE");
+        IActionResult actualResponse = await function.RunAsync(context.Request, "ABCDE");
 
-        ContentResult? result = Assert.IsType<ContentResult>(actualResponse);
+        ContentResult result = Assert.IsType<ContentResult>(actualResponse);
         Assert.Equal(StatusCodes.Status500InternalServerError, result.StatusCode);
     }
 }

@@ -4,27 +4,30 @@
 using System.IO.Pipelines;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
 
 using HaveIBeenPwned.PwnedPasswords;
 
 Console.WriteLine("Hello, World!");
-Dictionary<string, List<HashEntry>> entries = new ();
+Dictionary<string, List<HashEntry>> entries = [];
 
 foreach (string ingestionFile in Directory.EnumerateFiles($@"**REPLACE WITH INPUT**"))
 {
     using (Stream stream = File.OpenRead(ingestionFile))
     {
         int count = 0;
-        await foreach (PwnedPasswordsIngestionValue? entry in JsonSerializer.DeserializeAsyncEnumerable<PwnedPasswordsIngestionValue>(stream))
+        // Use JsonTypeInfo for PwnedPasswordsIngestionValue to avoid IL2026
+        await foreach (PwnedPasswordsIngestionValue entry in JsonSerializer.DeserializeAsyncEnumerable(
+            stream,
+            PwnedPasswordsIngestionContext.Default.PwnedPasswordsIngestionValue
+        ))
         {
             if (entry != null)
             {
                 entry.NTLMHash = entry.NTLMHash.ToUpperInvariant();
                 string prefix = entry.NTLMHash[..5];
-                if (!entries.TryGetValue(prefix, out List<HashEntry>? values))
+                if (!entries.TryGetValue(prefix, out List<HashEntry> values))
                 {
-                    values = new List<HashEntry>();
+                    values = [];
                     entries[prefix] = values;
                 }
 
@@ -61,9 +64,9 @@ static async Task ParseAndUpdateHashFile(string prefix, List<HashEntry> batchEnt
 
     try
     {
-        SortedSet<HashEntry> entries = new();
+        SortedSet<HashEntry> entries = [];
 
-        // Let's read the existing blob into a sorted dictionary so we can write it back in order!
+// Let's read the existing blob into a sorted dictionary so we can write it back in order!
         FileStream file = File.Open($@"**REPLACE WITH OUTPUT**\{prefix}.txt", new FileStreamOptions()
         {
             Access = FileAccess.Read,
@@ -136,4 +139,9 @@ public class PwnedPasswordsIngestionValue
     public string NTLMHash { get; set; } = "";
     [JsonPropertyName("num")]
     public int Prevalence { get; set; }
+}
+
+[JsonSerializable(typeof(PwnedPasswordsIngestionValue))]
+internal partial class PwnedPasswordsIngestionContext : JsonSerializerContext
+{
 }

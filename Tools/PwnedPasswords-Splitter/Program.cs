@@ -5,7 +5,7 @@ using System.IO.Pipelines;
 using HaveIBeenPwned.PwnedPasswords;
 
 int i = 0;
-byte[] Newline = new[] { (byte)'\r', (byte)'\n' };
+byte[] Newline = "\r\n"u8.ToArray();
 
 IAsyncEnumerable<(string file, List<HashEntry> entries, bool writeBinary)> asyncEnumerable = SplitHashesAsync(@"C:\Users\stefa\Downloads\pwned-passwords-ntlm-ordered-by-hash-v8\pwned-passwords-ntlm-ordered-by-hash-v8.txt", false);
 await Parallel.ForEachAsync(asyncEnumerable, WriteEntries).ConfigureAwait(false);
@@ -34,7 +34,7 @@ async IAsyncEnumerable<(string file, List<HashEntry> entries, bool writeBinary)>
     static string GetFileName(bool writeBinary, List<HashEntry> entries) => $@"C:\Users\stefa\source\repos\PwnedPasswordsSplitter\hashes\{Convert.ToHexString(entries[0].Hash.Slice(0, 3).Span)[..5]}.{(writeBinary ? "bin" : "txt")}";
 }
 
-async ValueTask WriteEntries((string file, List<HashEntry> entries, bool writeBinary) item, CancellationToken _)
+async ValueTask WriteEntries((string file, List<HashEntry> entries, bool writeBinary) item, CancellationToken cancellationToken)
 {
     using FileStream output = File.Open(item.file, new FileStreamOptions() { Access = FileAccess.Write, Mode = FileMode.Create, Options = FileOptions.Asynchronous, BufferSize = 1024 * 64 });
     var writer = PipeWriter.Create(output, new StreamPipeWriterOptions(minimumBufferSize: 64 * 1024));
@@ -58,7 +58,7 @@ async ValueTask WriteEntries((string file, List<HashEntry> entries, bool writeBi
         }
     }
 
-    ValueTask<FlushResult> flushTask = writer.FlushAsync();
+    ValueTask<FlushResult> flushTask = writer.FlushAsync(cancellationToken);
     if(!flushTask.IsCompletedSuccessfully)
     {
         await flushTask.ConfigureAwait(false);

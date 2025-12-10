@@ -43,7 +43,7 @@ internal static class HttpRequestDataExtensions
     internal static IActionResult InternalServerError(this HttpRequest req, string contents) => req.PlainTextResult(StatusCodes.Status500InternalServerError, contents);
 
 
-    internal static async Task<(bool Success, IActionResult? Error)> TryValidateEntries(this HttpRequest req, IAsyncEnumerable<PwnedPasswordsIngestionValue?> entries)
+    internal static async Task<(bool Success, IActionResult Error)> TryValidateEntries(this HttpRequest req, IAsyncEnumerable<PwnedPasswordsIngestionValue> entries)
     {
         // First validate the data
         if (entries == null)
@@ -53,7 +53,7 @@ internal static class HttpRequestDataExtensions
         }
 
         int i = 0;
-        await foreach (PwnedPasswordsIngestionValue? entry in entries.ConfigureAwait(false))
+        await foreach (PwnedPasswordsIngestionValue entry in entries.ConfigureAwait(false))
         {
             i++;
             if (entry == null)
@@ -96,6 +96,5 @@ internal static class HttpRequestDataExtensions
         return (true, null);
     }
 
-    private static IActionResult PlainTextResult(this HttpRequest _, int statusCode, string content) => new ContentResult { StatusCode = statusCode, Content = content, ContentType = "text/plain" };
-
+    private static ContentResult PlainTextResult(this HttpRequest _, int statusCode, string content) => new() { StatusCode = statusCode, Content = content, ContentType = "text/plain" };
 }

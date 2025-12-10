@@ -47,7 +47,7 @@ public sealed class TableStorage : ITableStorage
             if (!transactionEntityResponse.Value.Confirmed)
             {
                 transactionEntityResponse.Value.Confirmed = true;
-                Response? updateResponse = await _transactionTable.UpdateEntityAsync(transactionEntityResponse.Value, transactionEntityResponse.Value.ETag, cancellationToken: cancellationToken).ConfigureAwait(false);
+                Response updateResponse = await _transactionTable.UpdateEntityAsync(transactionEntityResponse.Value, transactionEntityResponse.Value.ETag, cancellationToken: cancellationToken).ConfigureAwait(false);
                 _log.LogInformation("Subscription {SubscriptionId} successfully confirmed transaction {TransactionId}. Queueing data for blob updates.", subscriptionId, transaction.TransactionId);
                 return true;
             }

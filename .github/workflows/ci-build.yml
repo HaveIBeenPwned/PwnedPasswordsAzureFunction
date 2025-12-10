@@ -12,28 +12,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v5
 
-    - name: Setup .NET 7.0 SDK
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 7.x
-        include-prerelease: false
-    
-    - name: Setup .NET 6.0 SDK
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 6.x
-        include-prerelease: false
-
-    - name: Setup .NET 3.1 SDK
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 3.1.x
-        
     - name: Build Project
       run: dotnet build --configuration Release
-    
+
     - name: Run Tests
       run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage"
 
@@ -56,9 +39,9 @@ jobs:
     - name: Upload coverage report artifact
       uses: actions/upload-artifact@v2.2.3
       with:
-        name: CoverageReport # Artifact name        
+        name: CoverageReport # Artifact name
         path: coveragereport # Directory containing files to upload
-    
+
     - name: Upload Test Results
       uses: actions/upload-artifact@v2  # upload test results
       if: always()                      # always run this step
