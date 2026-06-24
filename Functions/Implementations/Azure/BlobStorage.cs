@@ -53,7 +53,7 @@ public class BlobStorage : IFileStorage
         try
         {
             Response<BlobDownloadResult> response = await blobClient.DownloadContentAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-            return new PwnedPasswordsFile(response.Value.Content.ToStream(), response.Value.Details.LastModified, response.Value.Details.ETag.ToString(), response.Value.Details.ContentHash);
+            return new PwnedPasswordsFile(response.Value.Content.ToStream(), response.Value.Details.LastModified, response.Value.Details.ETag.ToString(), response.Value.Details.BlobContentHash);
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
