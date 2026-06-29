@@ -61,7 +61,7 @@ public sealed class TableStorage : ITableStorage
         }
         catch (RequestFailedException e) when (e.Status == StatusCodes.Status409Conflict)
         {
-            throw new ArgumentException("Transaciton has already been updated.", e);
+            throw new ArgumentException("Transaction has already been updated.", e);
         }
         catch (RequestFailedException e)
         {

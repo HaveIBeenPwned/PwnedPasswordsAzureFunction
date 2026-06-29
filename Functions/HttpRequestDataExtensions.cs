@@ -83,7 +83,7 @@ internal static class HttpRequestDataExtensions
             if (!entry.NTLMHash.IsStringNTLMHash())
             {
                 // Invalid NTLM hash, bad request
-                return (false, req.BadRequest("The NTLM has was not in a valid format at index " + i));
+                return (false, req.BadRequest("The NTLM hash was not in a valid format at index " + i));
             }
 
             if (entry.Prevalence <= 0)
