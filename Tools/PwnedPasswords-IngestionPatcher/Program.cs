@@ -45,9 +45,9 @@ foreach (string ingestionFile in Directory.EnumerateFiles($@"**REPLACE WITH INPU
 }
 
 int num = 0;
-await Parallel.ForEachAsync(entries, WriteEnties);
+await Parallel.ForEachAsync(entries, WriteEntries);
 
-async ValueTask WriteEnties(KeyValuePair<string, List<HashEntry>> entry, CancellationToken cancellationToken)
+async ValueTask WriteEntries(KeyValuePair<string, List<HashEntry>> entry, CancellationToken cancellationToken)
 {
     await ParseAndUpdateHashFile(entry.Key, entry.Value, false).ConfigureAwait(false);
     entries.Remove(entry.Key);
